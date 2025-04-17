@@ -1,0 +1,72 @@
+services:
+#   app:
+#     build:
+#       context: .
+#       dockerfile: Dockerfile
+#     ports:
+#       - "8080:8080"
+#     environment:
+#       - DB_HOST=postgres
+#       - DB_PORT=5432
+#       - DB_USER=vinak
+#       - DB_PASSWORD=M@haL3M0ND@da5hI
+#       - DB_NAME=ghedis
+#       - REDIS_URL=redis:6379
+#       - REDIS_PASSWORD=3lViN@k0
+#       - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
+#       - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET}
+#       - ZARINPAL_MERCHANT_ID=${ZARINPAL_MERCHANT_ID}
+#       - ZARINPAL_SANDBOX=${ZARINPAL_SANDBOX}
+#       - TELEGRAM_TOKEN=${TELEGRAM_TOKEN}
+#       - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}
+#       - SMTP_HOST=${SMTP_HOST}
+#       - SMTP_PORT=${SMTP_PORT}
+#       - SMTP_USERNAME=${SMTP_USERNAME}
+#       - SMTP_PASSWORD=${SMTP_PASSWORD}
+#       - SMTP_FROM=${SMTP_FROM}
+#     depends_on:
+#       - postgres
+#       - redis
+#     networks:
+#       - vinak-network
+
+  postgres:
+    image: postgres:15-alpine
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=vinak
+      - POSTGRES_PASSWORD=M@haL3M0ND@da5hI
+      - POSTGRES_DB=ghedis
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - vinak-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vinak"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    command: redis-server --requirepass 3lViN@k0
+    volumes:
+      - redis_data:/data
+    networks:
+      - vinak-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "3lViN@k0", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+networks:
+  vinak-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data: 
