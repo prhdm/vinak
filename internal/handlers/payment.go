@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"fmt"
 	"log"
 	"net/http"
 	"strconv"
@@ -71,6 +72,8 @@ func (h *PaymentHandler) CreatePayment(c *gin.Context) {
 		return
 	}
 
+	fmt.Println("1")
+
 	switch req.Gateway {
 	case constants.PaymentGatewayZarinpal:
 		if req.Currency != constants.CurrencyIRR {
@@ -90,6 +93,7 @@ func (h *PaymentHandler) CreatePayment(c *gin.Context) {
 			"",
 		)
 		if err != nil {
+			fmt.Println(err)
 			c.JSON(http.StatusInternalServerError, errors.NewPaymentGatewayError(constants.PaymentGatewayZarinpal, err))
 			return
 		}
