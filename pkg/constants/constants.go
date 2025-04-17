@@ -24,7 +24,7 @@ const (
 	PaymentEventNowPaymentsCompleted = "nowpayments_payment_completed"
 
 	// API Headers
-	HeaderAPIKey = "X-API-Key"
+	HeaderAPIKey = "Authorization"
 
 	// PayPal Constants
 	PayPalIntentCapture = "CAPTURE"
