@@ -99,7 +99,7 @@ func (h *PaymentHandler) CreatePayment(c *gin.Context) {
 		}
 
 		// Update payment with Zarinpal authority
-		payment.ZarinpalAuthority = authority
+		payment.ZarinpalAuthority = &authority
 		if err := h.db.Save(&payment).Error; err != nil {
 			c.JSON(http.StatusInternalServerError, errors.NewAPIError(http.StatusInternalServerError, "Failed to update payment record"))
 			return
@@ -141,7 +141,7 @@ func (h *PaymentHandler) CreatePayment(c *gin.Context) {
 		}
 
 		// Update payment with PayPal order ID
-		payment.PayPalOrderID = order.ID
+		payment.PayPalOrderID = &order.ID
 		if err := h.db.Save(&payment).Error; err != nil {
 			c.JSON(http.StatusInternalServerError, errors.NewAPIError(http.StatusInternalServerError, "Failed to update payment record"))
 			return
@@ -189,7 +189,7 @@ func (h *PaymentHandler) CreatePayment(c *gin.Context) {
 		}
 
 		// Update payment with NowPayments payment ID
-		payment.NowPaymentsPaymentID = nowpaymentsPayment.PaymentID
+		payment.NowPaymentsPaymentID = &nowpaymentsPayment.PaymentID
 		if err := h.db.Save(&payment).Error; err != nil {
 			c.JSON(http.StatusInternalServerError, errors.NewAPIError(http.StatusInternalServerError, "Failed to update payment record"))
 			return
