@@ -5,15 +5,15 @@ import (
 )
 
 type User struct {
-	ID                uint   `gorm:"primary_key;auto_increment"`
-	Email             string `gorm:"unique;not null"`
-	InstagramID       string `gorm:"unique;not null"`
-	Name              string `gorm:"not null"`
-	APIKey            string `gorm:"unique;not null"`
-	Password          string `gorm:"not null"`
-	EmailVerified     bool   `gorm:"default:false"`
-	VerificationToken string `gorm:"unique"`
-	StripeCustomerID  string `gorm:"unique"`
+	ID                uint    `gorm:"primary_key;auto_increment"`
+	Email             string  `gorm:"unique;not null"`
+	InstagramID       string  `gorm:"unique;not null"`
+	Name              string  `gorm:"not null"`
+	APIKey            string  `gorm:"unique;not null"`
+	Password          string  `gorm:"not null"`
+	EmailVerified     bool    `gorm:"default:false"`
+	VerificationToken string  `gorm:"unique"`
+	StripeCustomerID  *string `gorm:"default:null"`
 	CreatedAt         time.Time
 	UpdatedAt         time.Time
 }
