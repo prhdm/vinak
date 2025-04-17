@@ -22,34 +22,53 @@ func NewZarinpalService(merchantID string, sandbox bool) *ZarinpalService {
 
 func (s *ZarinpalService) getBaseURL() string {
 	if s.Sandbox {
-		return "https://sandbox.zarinpal.com/pg/rest/WebGate"
+		return "https://sandbox.zarinpal.com/pg/v4"
 	}
-	return "https://www.zarinpal.com/pg/rest/WebGate"
+	return "https://payment.zarinpal.com/pg/v4"
 }
 
 type PaymentRequest struct {
-	MerchantID  string `json:"MerchantID"`
-	Amount      int    `json:"Amount"`
-	CallbackURL string `json:"CallbackURL"`
-	Description string `json:"Description"`
-	Email       string `json:"Email"`
-	Mobile      string `json:"Mobile"`
+	MerchantID  string          `json:"merchant_id"`
+	Amount      int             `json:"amount"`
+	CallbackURL string          `json:"callback_url"`
+	Description string          `json:"description"`
+	Metadata    PaymentMetadata `json:"metadata"`
+}
+
+type PaymentMetadata struct {
+	Mobile  string `json:"mobile"`
+	Email   string `json:"email"`
+	OrderID string `json:"order_id"`
 }
 
 type PaymentResponse struct {
-	Status    int    `json:"Status"`
-	Authority string `json:"Authority"`
+	Data struct {
+		Code      int    `json:"code"`
+		Message   string `json:"message"`
+		Authority string `json:"authority"`
+		FeeType   string `json:"fee_type"`
+		Fee       int    `json:"fee"`
+	} `json:"data"`
+	Errors []string `json:"errors"`
 }
 
 type VerificationRequest struct {
-	MerchantID string `json:"MerchantID"`
-	Amount     int    `json:"Amount"`
-	Authority  string `json:"Authority"`
+	MerchantID string `json:"merchant_id"`
+	Amount     int    `json:"amount"`
+	Authority  string `json:"authority"`
 }
 
 type VerificationResponse struct {
-	Status int    `json:"Status"`
-	RefID  string `json:"RefID"`
+	Data struct {
+		Code     int    `json:"code"`
+		Message  string `json:"message"`
+		CardHash string `json:"card_hash"`
+		CardPan  string `json:"card_pan"`
+		RefID    int    `json:"ref_id"`
+		FeeType  string `json:"fee_type"`
+		Fee      int    `json:"fee"`
+	} `json:"data"`
+	Errors []string `json:"errors"`
 }
 
 func (s *ZarinpalService) CreatePayment(amount int, callbackURL, description, email, mobile string) (string, string, error) {
@@ -58,8 +77,11 @@ func (s *ZarinpalService) CreatePayment(amount int, callbackURL, description, em
 		Amount:      amount,
 		CallbackURL: callbackURL,
 		Description: description,
-		Email:       email,
-		Mobile:      mobile,
+		Metadata: PaymentMetadata{
+			Mobile:  mobile,
+			Email:   email,
+			OrderID: "",
+		},
 	}
 
 	reqBody, err := json.Marshal(req)
@@ -67,19 +89,26 @@ func (s *ZarinpalService) CreatePayment(amount int, callbackURL, description, em
 		return "", "", fmt.Errorf("failed to marshal request: %v", err)
 	}
 
-	resp, err := http.Post(s.getBaseURL()+"/PaymentRequest.json", "application/json", bytes.NewReader(reqBody))
+	client := &http.Client{}
+	request, err := http.NewRequest("POST", s.getBaseURL()+"/payment/request.json", bytes.NewBuffer(reqBody))
+	if err != nil {
+		return "", "", fmt.Errorf("failed to create request: %v", err)
+	}
+
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("Accept", "application/json")
+
+	resp, err := client.Do(request)
 	if err != nil {
 		return "", "", fmt.Errorf("failed to send request: %v", err)
 	}
 	defer resp.Body.Close()
 
-	// Read the response body
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return "", "", fmt.Errorf("failed to read response body: %v", err)
 	}
 
-	// Log the response for debugging
 	fmt.Printf("Zarinpal response: %s\n", string(body))
 
 	var paymentResp PaymentResponse
@@ -87,8 +116,12 @@ func (s *ZarinpalService) CreatePayment(amount int, callbackURL, description, em
 		return "", "", fmt.Errorf("failed to unmarshal response: %v, body: %s", err, string(body))
 	}
 
-	if paymentResp.Status != 100 {
-		return "", "", fmt.Errorf("payment request failed with status: %d", paymentResp.Status)
+	if len(paymentResp.Errors) > 0 {
+		return "", "", fmt.Errorf("payment request failed with errors: %v", paymentResp.Errors)
+	}
+
+	if paymentResp.Data.Code != 100 {
+		return "", "", fmt.Errorf("payment request failed with code: %d, message: %s", paymentResp.Data.Code, paymentResp.Data.Message)
 	}
 
 	paymentURL := fmt.Sprintf("https://%s/pg/StartPay/%s",
@@ -96,11 +129,11 @@ func (s *ZarinpalService) CreatePayment(amount int, callbackURL, description, em
 			if s.Sandbox {
 				return "sandbox.zarinpal.com"
 			}
-			return "www.zarinpal.com"
+			return "payment.zarinpal.com"
 		}(),
-		paymentResp.Authority)
+		paymentResp.Data.Authority)
 
-	return paymentURL, paymentResp.Authority, nil
+	return paymentURL, paymentResp.Data.Authority, nil
 }
 
 func (s *ZarinpalService) VerifyPayment(amount int, authority string) (bool, string, error) {
@@ -112,23 +145,43 @@ func (s *ZarinpalService) VerifyPayment(amount int, authority string) (bool, str
 
 	reqBody, err := json.Marshal(req)
 	if err != nil {
-		return false, "", err
+		return false, "", fmt.Errorf("failed to marshal request: %v", err)
 	}
 
-	resp, err := http.Post(s.getBaseURL()+"/PaymentVerification.json", "application/json", bytes.NewReader(reqBody))
+	client := &http.Client{}
+	request, err := http.NewRequest("POST", s.getBaseURL()+"/payment/verify.json", bytes.NewBuffer(reqBody))
 	if err != nil {
-		return false, "", err
+		return false, "", fmt.Errorf("failed to create request: %v", err)
+	}
+
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("Accept", "application/json")
+
+	resp, err := client.Do(request)
+	if err != nil {
+		return false, "", fmt.Errorf("failed to send request: %v", err)
 	}
 	defer resp.Body.Close()
 
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return false, "", fmt.Errorf("failed to read response body: %v", err)
+	}
+
+	fmt.Printf("Zarinpal verification response: %s\n", string(body))
+
 	var verifyResp VerificationResponse
-	if err := json.NewDecoder(resp.Body).Decode(&verifyResp); err != nil {
-		return false, "", err
+	if err := json.Unmarshal(body, &verifyResp); err != nil {
+		return false, "", fmt.Errorf("failed to unmarshal response: %v, body: %s", err, string(body))
 	}
 
-	if verifyResp.Status != 100 {
-		return false, "", fmt.Errorf("payment verification failed with status: %d", verifyResp.Status)
+	if len(verifyResp.Errors) > 0 {
+		return false, "", fmt.Errorf("payment verification failed with errors: %v", verifyResp.Errors)
 	}
 
-	return true, verifyResp.RefID, nil
+	if verifyResp.Data.Code != 100 && verifyResp.Data.Code != 101 {
+		return false, "", fmt.Errorf("payment verification failed with code: %d, message: %s", verifyResp.Data.Code, verifyResp.Data.Message)
+	}
+
+	return true, fmt.Sprintf("%d", verifyResp.Data.RefID), nil
 }
