@@ -89,11 +89,20 @@ func (h *UserHandler) VerifyOTPAndCreateUser(c *gin.Context) {
 	}
 	apiKeyStr := base64.StdEncoding.EncodeToString(apiKey)
 
+	// Generate verification token
+	verificationToken := make([]byte, 32)
+	if _, err := rand.Read(verificationToken); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate verification token"})
+		return
+	}
+	verificationTokenStr := base64.StdEncoding.EncodeToString(verificationToken)
+
 	user := models.User{
-		Email:       req.Email,
-		InstagramID: req.InstagramID,
-		Name:        req.Name,
-		APIKey:      apiKeyStr,
+		Email:             req.Email,
+		InstagramID:       req.InstagramID,
+		Name:              req.Name,
+		APIKey:            apiKeyStr,
+		VerificationToken: verificationTokenStr,
 	}
 
 	if err := h.db.Create(&user).Error; err != nil {

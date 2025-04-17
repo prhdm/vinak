@@ -84,7 +84,7 @@ func (h *PaymentHandler) CreatePayment(c *gin.Context) {
 		// Create Zarinpal payment
 		paymentURL, authority, err := h.zarinpalService.CreatePayment(
 			amountInTomans,
-			"http://your-domain.com/api/payments/zarinpal/callback",
+			"https://vinak.net/api/payments/zarinpal/callback",
 			"Payment for service",
 			user.Email,
 			"",
