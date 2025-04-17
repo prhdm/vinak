@@ -45,7 +45,7 @@ func (h *UserHandler) SendOTP(c *gin.Context) {
 		return
 	}
 
-	otp, err := h.otpService.GenerateOTP(req.Email)a
+	otp, err := h.otpService.GenerateOTP(req.Email)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate OTP"})
 		return
