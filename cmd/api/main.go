@@ -69,7 +69,7 @@ func main() {
 	r.POST("/api/verify-otp", userHandler.VerifyOTPAndCreateUser)
 
 	r.POST("/api/payments", paymentHandler.CreatePayment)
-	r.GET("/api/payments/top-users", paymentHandler.GetTopUsers)
+	r.GET("/api/top-users", paymentHandler.GetTopUsers)
 	r.POST("/api/payments/paypal/callback", paymentHandler.HandlePayPalCallback)
 	r.POST("/api/payments/nowpayments/callback", paymentHandler.HandleNowPaymentsCallback)
 

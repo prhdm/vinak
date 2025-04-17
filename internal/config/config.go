@@ -15,7 +15,6 @@ type Config struct {
 	DBName             string
 	RedisURL           string
 	RedisPassword      string
-	JWTSecret          string
 	SMTPHost           string
 	SMTPPort           string
 	SMTPUser           string
@@ -50,7 +49,6 @@ func LoadConfig() (*Config, error) {
 		DBName:             os.Getenv("DB_NAME"),
 		RedisURL:           os.Getenv("REDIS_URL"),
 		RedisPassword:      os.Getenv("REDIS_PASSWORD"),
-		JWTSecret:          os.Getenv("JWT_SECRET"),
 		SMTPHost:           os.Getenv("SMTP_HOST"),
 		SMTPPort:           os.Getenv("SMTP_PORT"),
 		SMTPUser:           os.Getenv("SMTP_USER"),
