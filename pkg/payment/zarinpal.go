@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 )
 
@@ -63,18 +64,27 @@ func (s *ZarinpalService) CreatePayment(amount int, callbackURL, description, em
 
 	reqBody, err := json.Marshal(req)
 	if err != nil {
-		return "", "", err
+		return "", "", fmt.Errorf("failed to marshal request: %v", err)
 	}
 
 	resp, err := http.Post(s.getBaseURL()+"/PaymentRequest.json", "application/json", bytes.NewReader(reqBody))
 	if err != nil {
-		return "", "", err
+		return "", "", fmt.Errorf("failed to send request: %v", err)
 	}
 	defer resp.Body.Close()
 
+	// Read the response body
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to read response body: %v", err)
+	}
+
+	// Log the response for debugging
+	fmt.Printf("Zarinpal response: %s\n", string(body))
+
 	var paymentResp PaymentResponse
-	if err := json.NewDecoder(resp.Body).Decode(&paymentResp); err != nil {
-		return "", "", err
+	if err := json.Unmarshal(body, &paymentResp); err != nil {
+		return "", "", fmt.Errorf("failed to unmarshal response: %v, body: %s", err, string(body))
 	}
 
 	if paymentResp.Status != 100 {
