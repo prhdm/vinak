@@ -175,7 +175,7 @@ func (h *PaymentHandler) CreatePayment(c *gin.Context) {
 		nowpaymentsPayment, err := h.nowpaymentsService.CreatePayment(
 			req.Amount,
 			req.Currency,
-			payment.ID.String(),
+			strconv.Itoa(int(payment.ID)),
 			"Payment for service",
 			"http://your-domain.com/api/payments/nowpayments/callback",
 		)
