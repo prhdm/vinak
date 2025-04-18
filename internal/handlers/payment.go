@@ -181,7 +181,7 @@ func (h *PaymentHandler) CreatePayment(c *gin.Context) {
 			req.Currency,
 			strconv.Itoa(int(payment.ID)),
 			"Payment for service",
-			"http://your-domain.com/api/payments/nowpayments/callback",
+			"http://vinak.net/api/payments/nowpayments/callback",
 		)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, errors.NewPaymentGatewayError(constants.PaymentGatewayNowPayments, err))
