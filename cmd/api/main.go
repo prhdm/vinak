@@ -70,11 +70,11 @@ func main() {
 		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
 		AllowCredentials: true,
 	}))
-	r.POST("/send-otp", userHandler.SendOTP)
-	r.POST("/verify-otp", userHandler.VerifyOTPAndCreateUser)
+	r.POST("/api/send-otp", userHandler.SendOTP)
+	r.POST("/api/verify-otp", userHandler.VerifyOTPAndCreateUser)
 
-	r.POST("/payments", paymentHandler.CreatePayment)
-	r.GET("/top-users", paymentHandler.GetTopUsers)
+	r.POST("/api/payments", paymentHandler.CreatePayment)
+	r.GET("/api/top-users", paymentHandler.GetTopUsers)
 	r.POST("/api/payments/paypal/callback", paymentHandler.HandlePayPalCallback)
 	r.POST("/api/payments/nowpayments/callback", paymentHandler.HandleNowPaymentsCallback)
 
