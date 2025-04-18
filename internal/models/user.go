@@ -5,16 +5,12 @@ import (
 )
 
 type User struct {
-	ID                uint   `gorm:"primary_key;auto_increment"`
-	Email             string `gorm:"unique;not null"`
-	InstagramID       string `gorm:"unique;not null"`
-	Name              string `gorm:"not null"`
-	APIKey            string `gorm:"unique;not null"`
-	Password          string `gorm:"not null"`
-	EmailVerified     bool   `gorm:"default:false"`
-	VerificationToken string `gorm:"unique"`
-	CreatedAt         time.Time
-	UpdatedAt         time.Time
+	ID          uint   `gorm:"primary_key;auto_increment"`
+	Email       string `gorm:"unique;not null"`
+	InstagramID string `gorm:"unique;not null"`
+	Name        string `gorm:"not null"`
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
 }
 
 type Payment struct {
@@ -36,6 +32,7 @@ type PaymentLog struct {
 	PaymentID uint   `gorm:"not null"`
 	Event     string `gorm:"not null"`
 	Data      string `gorm:"type:jsonb"`
+	UserID    uint   `gorm:"not null"`
 	CreatedAt time.Time
 }
 
@@ -46,4 +43,12 @@ type TopUserResponse struct {
 	TotalAmount  float64 `json:"total_amount"`
 	Currency     string  `json:"currency"`
 	PaymentCount int     `json:"payment_count"`
+}
+
+type UserPayment struct {
+	ID        uint    `gorm:"primary_key;auto_increment"`
+	UserID    uint    `gorm:"not null;unique"`
+	Amount    float64 `gorm:"not null"`
+	CreatedAt time.Time
+	UpdatedAt time.Time
 }

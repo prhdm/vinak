@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
@@ -38,6 +39,15 @@ type CreatePaymentRequest struct {
 	Amount   float64 `json:"amount" binding:"required,gt=0"`
 	Currency string  `json:"currency" binding:"required,oneof=usd irr btc"`
 	Gateway  string  `json:"gateway" binding:"required,oneof=zarinpal paypal nowpayments"`
+}
+
+type PreparePaymentRequest struct {
+	Name        string  `json:"name" binding:"required"`
+	InstagramID string  `json:"instagram_id" binding:"required"`
+	Email       string  `json:"email" binding:"required,email"`
+	Currency    string  `json:"currency" binding:"required,oneof=usd irr btc"`
+	Amount      float64 `json:"amount" binding:"required,gt=0"`
+	AuthorityID string  `json:"authority_id" binding:"required"`
 }
 
 func (h *PaymentHandler) CreatePayment(c *gin.Context) {
@@ -439,4 +449,115 @@ func (h *PaymentHandler) GetTopUsers(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"supporters": supporters,
 	})
+}
+
+func (h *PaymentHandler) HandleZarinpalCallback(c *gin.Context) {
+	authority := c.Query("Authority")
+	status := c.Query("Status")
+
+	if authority == "" || status != "OK" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Payment was canceled or invalid"})
+		return
+	}
+
+	// Query the PaymentLog table using JSONB query to find the authority ID
+	var paymentLog models.PaymentLog
+	if err := h.db.Where("data->>'authority_id' = ?", authority).First(&paymentLog).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Payment log not found"})
+		return
+	}
+
+	// Retrieve the user ID from the payment log
+	var user models.User
+	if err := h.db.Where("id = ?", paymentLog.UserID).First(&user).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to find user"})
+		return
+	}
+
+	// Parse amount from JSONB data
+	var amount float64
+	if err := json.Unmarshal([]byte(paymentLog.Data), &amount); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to parse amount from payment log"})
+		return
+	}
+
+	// Verify the payment with Zarinpal
+	ok, refID, err := h.zarinpalService.VerifyPayment(int(amount), authority)
+	if err != nil || !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Payment verification failed"})
+		return
+	}
+
+	// Update or create user payment record
+	var userPayment models.UserPayment
+	if err := h.db.Where("user_id = ?", user.ID).First(&userPayment).Error; err != nil {
+		// If not found, create a new record
+		userPayment = models.UserPayment{
+			UserID: user.ID,
+			Amount: amount,
+		}
+		if err := h.db.Create(&userPayment).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create user payment record"})
+			return
+		}
+	} else {
+		// If found, update the amount
+		userPayment.Amount += amount
+		if err := h.db.Save(&userPayment).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update user payment record"})
+			return
+		}
+	}
+
+	// Create payment log with user ID
+	newPaymentLog := models.PaymentLog{
+		PaymentID: paymentLog.PaymentID,
+		Event:     "zarinpal_payment_completed",
+		Data:      fmt.Sprintf(`{"authority": "%s", "ref_id": "%s", "user_id": %d}`, authority, refID, user.ID),
+	}
+
+	if err := h.db.Create(&newPaymentLog).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create payment log"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"status":  "success",
+		"ref_id":  refID,
+		"amount":  amount,
+		"orderId": paymentLog.PaymentID,
+	})
+}
+
+func (h *PaymentHandler) PreparePayment(c *gin.Context) {
+	var req PreparePaymentRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	user := models.User{
+		Name:        req.Name,
+		InstagramID: req.InstagramID,
+		Email:       req.Email,
+	}
+
+	if err := h.db.Create(&user).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create user"})
+		return
+	}
+
+	paymentLog := models.PaymentLog{
+		UserID:    user.ID,
+		PaymentID: 0,
+		Event:     "payment_prepared",
+		Data:      fmt.Sprintf(`{"amount": %f, "currency": "%s", "authority_id": "%s"}`, req.Amount, req.Currency, req.AuthorityID),
+	}
+
+	if err := h.db.Create(&paymentLog).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to log payment"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"status": "success"})
 }

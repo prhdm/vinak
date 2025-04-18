@@ -2,19 +2,18 @@ package main
 
 import (
 	"context"
+	"log"
+	"vinak/internal/config"
+	"vinak/internal/handlers"
+	"vinak/internal/models"
+	"vinak/pkg/payment"
+	"vinak/pkg/telegram"
+
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/go-redis/redis/v8"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
-	"log"
-	"vinak/internal/config"
-	"vinak/internal/handlers"
-	"vinak/internal/models"
-	"vinak/internal/services"
-	"vinak/pkg/email"
-	"vinak/pkg/payment"
-	"vinak/pkg/telegram"
 )
 
 func main() {
@@ -43,9 +42,6 @@ func main() {
 		log.Fatalf("Failed to connect to Redis: %v", err)
 	}
 
-	otpService := services.NewOTPService(rdb)
-	emailService := email.NewEmailService(cfg.SMTPHost, cfg.SMTPPort, cfg.SMTPUser, cfg.SMTPPass)
-
 	// Initialize payment services
 	nowpaymentsService := payment.NewNowPaymentsService(cfg.NowPaymentsAPIKey)
 	paypalService, err := payment.NewPayPalService(cfg.PayPalClientID, cfg.PayPalClientSecret, cfg.PayPalMode)
@@ -60,7 +56,6 @@ func main() {
 		log.Fatalf("Failed to initialize Telegram service: %v", err)
 	}
 
-	userHandler := handlers.NewUserHandler(db, otpService, emailService)
 	paymentHandler := handlers.NewPaymentHandler(db, nowpaymentsService, paypalService, zarinpalService, telegramService)
 
 	r := gin.Default()
@@ -70,13 +65,12 @@ func main() {
 		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
 		AllowCredentials: true,
 	}))
-	r.POST("/api/send-otp", userHandler.SendOTP)
-	r.POST("/api/verify-otp", userHandler.VerifyOTPAndCreateUser)
-
 	r.POST("/api/payments", paymentHandler.CreatePayment)
 	r.GET("/api/top-users", paymentHandler.GetTopUsers)
 	r.POST("/api/payments/paypal/callback", paymentHandler.HandlePayPalCallback)
+	r.POST("/api/payments/zarinpal/callback", paymentHandler.HandleZarinpalCallback)
 	r.POST("/api/payments/nowpayments/callback", paymentHandler.HandleNowPaymentsCallback)
+	r.POST("/api/payment/prepare", paymentHandler.PreparePayment)
 
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{
