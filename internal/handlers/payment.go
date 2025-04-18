@@ -47,8 +47,6 @@ func (h *PaymentHandler) CreatePayment(c *gin.Context) {
 		return
 	}
 
-	h.telegramService.SendPaymentNotification("parham", "parhmhd", 1000, "USD", time.Now())
-
 	var user models.User
 	if err := h.db.Where("api_key = ?", apiKey).First(&user).Error; err != nil {
 		c.JSON(http.StatusUnauthorized, errors.NewAPIError(http.StatusUnauthorized, "Invalid API key"))
