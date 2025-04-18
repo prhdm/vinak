@@ -45,11 +45,11 @@ func (h *UserHandler) SendOTP(c *gin.Context) {
 		return
 	}
 
-	otp, err := h.otpService.GenerateOTP(req.Email)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate OTP"})
-		return
-	}
+	//otp, err := h.otpService.GenerateOTP(req.Email)
+	//if err != nil {
+	//	c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate OTP"})
+	//	return
+	//}
 
 	fmt.Println(otp)
 
