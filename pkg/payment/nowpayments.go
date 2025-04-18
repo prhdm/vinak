@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
-	"os"
 )
 
 type NowPaymentsService struct {
@@ -43,45 +43,61 @@ type NowPaymentsPaymentResponse struct {
 	UpdatedAt        string  `json:"updated_at"`
 }
 
-func (s *NowPaymentsService) CreatePayment(amount float64, currency, orderID, description, callbackURL string) (*NowPaymentsPaymentResponse, error) {
+type NowPaymentsErrorResponse struct {
+	Message string `json:"message"`
+	Code    int    `json:"code"`
+}
+
+func (s *NowPaymentsService) CreatePayment(priceAmount float64, priceCurrency, orderID, orderDescription, callbackURL string) (*NowPaymentsPaymentResponse, error) {
 	req := NowPaymentsPaymentRequest{
-		PriceAmount:      amount,
-		PriceCurrency:    currency,
-		PayCurrency:      "btc", // Default to BTC, can be changed based on requirements
+		PriceAmount:      priceAmount,
+		PriceCurrency:    priceCurrency,
+		PayCurrency:      "btc", // Default to BTC
 		OrderID:          orderID,
-		OrderDescription: description,
+		OrderDescription: orderDescription,
 		IPNCallbackURL:   callbackURL,
-		SuccessURL:       os.Getenv("NOWPAYMENTS_SUCCESS_URL"),
-		CancelURL:        os.Getenv("NOWPAYMENTS_CANCEL_URL"),
+		SuccessURL:       callbackURL + "?status=success",
+		CancelURL:        callbackURL + "?status=cancel",
 	}
 
 	reqBody, err := json.Marshal(req)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to marshal request: %v", err)
 	}
 
 	client := &http.Client{}
 	request, err := http.NewRequest("POST", "https://api.nowpayments.io/v1/payment", bytes.NewBuffer(reqBody))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create request: %v", err)
 	}
 
-	request.Header.Set("x-api-key", s.apiKey)
 	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("x-api-key", s.apiKey)
 
-	response, err := client.Do(request)
+	resp, err := client.Do(request)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to send request: %v", err)
 	}
-	defer response.Body.Close()
+	defer resp.Body.Close()
 
-	if response.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("nowpayments API returned status code: %d", response.StatusCode)
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %v", err)
+	}
+
+	fmt.Printf("NowPayments response: %s\n", string(body))
+
+	if resp.StatusCode != http.StatusOK {
+		var errorResp NowPaymentsErrorResponse
+		if err := json.Unmarshal(body, &errorResp); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal error response: %v", err)
+		}
+		return nil, fmt.Errorf("payment request failed with code %d: %s", errorResp.Code, errorResp.Message)
 	}
 
 	var paymentResp NowPaymentsPaymentResponse
-	if err := json.NewDecoder(response.Body).Decode(&paymentResp); err != nil {
-		return nil, err
+	if err := json.Unmarshal(body, &paymentResp); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal response: %v", err)
 	}
 
 	return &paymentResp, nil
@@ -89,26 +105,37 @@ func (s *NowPaymentsService) CreatePayment(amount float64, currency, orderID, de
 
 func (s *NowPaymentsService) GetPaymentStatus(paymentID string) (*NowPaymentsPaymentResponse, error) {
 	client := &http.Client{}
-	request, err := http.NewRequest("GET", fmt.Sprintf("https://api.nowpayments.io/v1/payment/%s", paymentID), nil)
+	request, err := http.NewRequest("GET", "https://api.nowpayments.io/v1/payment/"+paymentID, nil)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create request: %v", err)
 	}
 
 	request.Header.Set("x-api-key", s.apiKey)
 
-	response, err := client.Do(request)
+	resp, err := client.Do(request)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to send request: %v", err)
 	}
-	defer response.Body.Close()
+	defer resp.Body.Close()
 
-	if response.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("nowpayments API returned status code: %d", response.StatusCode)
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %v", err)
+	}
+
+	fmt.Printf("NowPayments status response: %s\n", string(body))
+
+	if resp.StatusCode != http.StatusOK {
+		var errorResp NowPaymentsErrorResponse
+		if err := json.Unmarshal(body, &errorResp); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal error response: %v", err)
+		}
+		return nil, fmt.Errorf("payment status request failed with code %d: %s", errorResp.Code, errorResp.Message)
 	}
 
 	var paymentResp NowPaymentsPaymentResponse
-	if err := json.NewDecoder(response.Body).Decode(&paymentResp); err != nil {
-		return nil, err
+	if err := json.Unmarshal(body, &paymentResp); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal response: %v", err)
 	}
 
 	return &paymentResp, nil

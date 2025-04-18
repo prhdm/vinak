@@ -2,6 +2,11 @@ package main
 
 import (
 	"context"
+	"github.com/gin-contrib/cors"
+	"github.com/gin-gonic/gin"
+	"github.com/go-redis/redis/v8"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
 	"log"
 	"vinak/internal/config"
 	"vinak/internal/handlers"
@@ -10,11 +15,6 @@ import (
 	"vinak/pkg/email"
 	"vinak/pkg/payment"
 	"vinak/pkg/telegram"
-
-	"github.com/gin-gonic/gin"
-	"github.com/go-redis/redis/v8"
-	"gorm.io/driver/postgres"
-	"gorm.io/gorm"
 )
 
 func main() {
@@ -64,7 +64,12 @@ func main() {
 	paymentHandler := handlers.NewPaymentHandler(db, nowpaymentsService, paypalService, zarinpalService, telegramService)
 
 	r := gin.Default()
-
+	r.Use(cors.New(cors.Config{
+		AllowOrigins:     []string{"http://127.0.0.1:5502", "https://vinak.net"},
+		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
+		AllowCredentials: true,
+	}))
 	r.POST("/api/send-otp", userHandler.SendOTP)
 	r.POST("/api/verify-otp", userHandler.VerifyOTPAndCreateUser)
 
