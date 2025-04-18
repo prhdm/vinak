@@ -521,6 +521,17 @@ func (h *PaymentHandler) HandleZarinpalCallback(c *gin.Context) {
 		return
 	}
 
+	// Send Telegram notification
+	if err := h.telegramService.SendPaymentNotification(
+		user.Name,
+		user.InstagramID,
+		amount,
+		"irr",
+		time.Now(),
+	); err != nil {
+		log.Printf("Failed to send Telegram notification: %v", err)
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"status":  "success",
 		"ref_id":  refID,
