@@ -53,12 +53,12 @@ func (h *UserHandler) SendOTP(c *gin.Context) {
 
 	fmt.Println(otp)
 
-	err = h.emailService.SendVerificationEmail(req.Email, otp)
-	if err != nil {
-		fmt.Println(err.Error())
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to send email"})
-		return
-	}
+	//err = h.emailService.SendVerificationEmail(req.Email, otp)
+	//if err != nil {
+	//	fmt.Println(err.Error())
+	//	c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to send email"})
+	//	return
+	//}
 
 	c.JSON(http.StatusOK, gin.H{"message": "OTP sent successfully"})
 }
