@@ -87,7 +87,7 @@ func (h *PaymentHandler) CreatePayment(c *gin.Context) {
 		// Create Zarinpal payment
 		paymentURL, authority, err := h.zarinpalService.CreatePayment(
 			amountInTomans,
-			"https://vinak.net/api/payments/zarinpal/callback",
+			"https://ak47album.com/api/payments/zarinpal/callback",
 			"Payment for service",
 			user.Email,
 			"",
@@ -181,7 +181,7 @@ func (h *PaymentHandler) CreatePayment(c *gin.Context) {
 			req.Currency,
 			strconv.Itoa(int(payment.ID)),
 			"Payment for service",
-			"http://vinak.net/api/payments/nowpayments/callback",
+			"http://ak47album.com/api/payments/nowpayments/callback",
 		)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, errors.NewPaymentGatewayError(constants.PaymentGatewayNowPayments, err))

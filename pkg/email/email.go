@@ -52,7 +52,7 @@ func (s *EmailService) SendVerificationEmail(to, otp string) error {
 	// Prepare email data
 	data := EmailData{
 		PIN:  otp,
-		ICON: "https://vinak.net/_next/image?url=%2Fbelaad.png&w=256&q=75", // You can replace this with a base64 encoded image if needed
+		ICON: "https://ak47album.com/album-cover.jpg", // You can replace this with a base64 encoded image if needed
 	}
 
 	// Execute the template
