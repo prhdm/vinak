@@ -70,7 +70,6 @@ func (h *UserHandler) VerifyOTPAndCreateUser(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	fmt.Println("code: ", req.OTP)
 	valid, err := h.otpService.VerifyOTP(req.Email, req.OTP)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to verify OTP"})

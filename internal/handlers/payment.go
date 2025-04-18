@@ -90,7 +90,7 @@ func (h *PaymentHandler) CreatePayment(c *gin.Context) {
 			"https://ak47album.com/api/payments/zarinpal/callback",
 			"Payment for service",
 			user.Email,
-			"",
+			"09352439835",
 		)
 		if err != nil {
 			fmt.Println(err)
