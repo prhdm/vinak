@@ -45,11 +45,11 @@ func (h *UserHandler) SendOTP(c *gin.Context) {
 		return
 	}
 
-	//otp, err := h.otpService.GenerateOTP(req.Email)
-	//if err != nil {
-	//	c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate OTP"})
-	//	return
-	//}
+	otp, err := h.otpService.GenerateOTP(req.Email)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate OTP"})
+		return
+	}
 
 	fmt.Println(otp)
 
@@ -70,16 +70,16 @@ func (h *UserHandler) VerifyOTPAndCreateUser(c *gin.Context) {
 		return
 	}
 
-	valid, err := h.otpService.VerifyOTP(req.Email, req.OTP)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to verify OTP"})
-		return
-	}
-
-	if !valid {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid OTP"})
-		return
-	}
+	//valid, err := h.otpService.VerifyOTP(req.Email, req.OTP)
+	//if err != nil {
+	//	c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to verify OTP"})
+	//	return
+	//}
+	//
+	//if !valid {
+	//	c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid OTP"})
+	//	return
+	//}
 
 	// Generate API key
 	apiKey := make([]byte, 32)
