@@ -199,7 +199,7 @@ func (h *PaymentHandler) CreatePayment(c *gin.Context) {
 		paymentLog := models.PaymentLog{
 			PaymentID: payment.ID,
 			Event:     constants.PaymentEventNowPaymentsCreated,
-			Data:      `{"payment_id": "` + nowpaymentsPayment.PaymentID + `", "amount": ` + strconv.FormatFloat(req.Amount, 'f', 2, 64) + `, "currency": "` + req.Currency + `"}`,
+			Data:      fmt.Sprintf(`{"payment_id": "%s", "amount": %f, "currency": "%s"}`, nowpaymentsPayment.PaymentID, req.Amount, req.Currency),
 		}
 
 		if err := h.db.Create(&paymentLog).Error; err != nil {
@@ -208,9 +208,17 @@ func (h *PaymentHandler) CreatePayment(c *gin.Context) {
 		}
 
 		c.JSON(http.StatusOK, gin.H{
-			"payment_address": nowpaymentsPayment.PayAddress,
-			"payment_id":      payment.ID,
-			"gateway":         constants.PaymentGatewayNowPayments,
+			"payment_id":        nowpaymentsPayment.PaymentID,
+			"payment_status":    nowpaymentsPayment.PaymentStatus,
+			"pay_address":       nowpaymentsPayment.PayAddress,
+			"price_amount":      nowpaymentsPayment.PriceAmount,
+			"price_currency":    nowpaymentsPayment.PriceCurrency,
+			"pay_amount":        nowpaymentsPayment.PayAmount,
+			"pay_currency":      nowpaymentsPayment.PayCurrency,
+			"order_id":          nowpaymentsPayment.OrderID,
+			"order_description": nowpaymentsPayment.OrderDescription,
+			"created_at":        nowpaymentsPayment.CreatedAt,
+			"gateway":           constants.PaymentGatewayNowPayments,
 		})
 
 	default:

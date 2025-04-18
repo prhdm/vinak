@@ -3,6 +3,7 @@ package handlers
 import (
 	"crypto/rand"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"net/http"
 	"vinak/internal/models"
@@ -81,6 +82,22 @@ func (h *UserHandler) VerifyOTPAndCreateUser(c *gin.Context) {
 		return
 	}
 
+	// Check if user already exists
+	var existingUser models.User
+	if err := h.db.Where("email = ?", req.Email).First(&existingUser).Error; err == nil {
+		// User exists, return their data
+		c.JSON(http.StatusOK, gin.H{
+			"message": "User created successfully",
+			"api_key": existingUser.APIKey,
+		})
+		return
+	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+		// Some other error occurred
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to check existing user"})
+		return
+	}
+
+	// User doesn't exist, proceed with new user creation
 	// Generate API key
 	apiKey := make([]byte, 32)
 	if _, err := rand.Read(apiKey); err != nil {

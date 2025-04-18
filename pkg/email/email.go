@@ -1,11 +1,16 @@
 package email
 
 import (
-	"fmt"
+	"bytes"
+	"embed"
+	"html/template"
 	"strconv"
 
 	"gopkg.in/gomail.v2"
 )
+
+//go:embed template/otp.html
+var emailTemplates embed.FS
 
 type EmailService struct {
 	host     string
@@ -23,19 +28,44 @@ func NewEmailService(host, port, username, password string) *EmailService {
 	}
 }
 
-func (s *EmailService) SendVerificationEmail(to, token string) error {
+type EmailData struct {
+	PIN  string
+	ICON string
+}
+
+func (s *EmailService) SendVerificationEmail(to, otp string) error {
 	port, _ := strconv.Atoi(s.port)
 	d := gomail.NewDialer(s.host, port, s.username, s.password)
+
+	// Read the template file
+	templateContent, err := emailTemplates.ReadFile("template/otp.html")
+	if err != nil {
+		return err
+	}
+
+	// Parse the template
+	tmpl, err := template.New("otp").Parse(string(templateContent))
+	if err != nil {
+		return err
+	}
+
+	// Prepare email data
+	data := EmailData{
+		PIN:  otp,
+		ICON: "https://vinak.net/_next/image?url=%2Fbelaad.png&w=256&q=75", // You can replace this with a base64 encoded image if needed
+	}
+
+	// Execute the template
+	var body bytes.Buffer
+	if err := tmpl.Execute(&body, data); err != nil {
+		return err
+	}
 
 	m := gomail.NewMessage()
 	m.SetHeader("From", s.username)
 	m.SetHeader("To", to)
-	m.SetHeader("Subject", "Email Verification")
-	
-	verificationLink := fmt.Sprintf("http://localhost:8080/verify?token=%s", token)
-	body := fmt.Sprintf("Please click the following link to verify your email: %s", verificationLink)
-	
-	m.SetBody("text/plain", body)
+	m.SetHeader("Subject", "Your Verification Code")
+	m.SetBody("text/html", body.String())
 
 	return d.DialAndSend(m)
-} 
+}
