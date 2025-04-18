@@ -25,9 +25,6 @@ type Config struct {
 	TelegramChatID     int64
 	ServerPort         string
 	NowPaymentsAPIKey  string
-	PayPalClientID     string
-	PayPalClientSecret string
-	PayPalMode         string
 }
 
 func LoadConfig() (*Config, error) {
@@ -59,9 +56,6 @@ func LoadConfig() (*Config, error) {
 		TelegramChatID:     chatID,
 		ServerPort:         os.Getenv("SERVER_PORT"),
 		NowPaymentsAPIKey:  os.Getenv("NOWPAYMENTS_API_KEY"),
-		PayPalClientID:     os.Getenv("PAYPAL_CLIENT_ID"),
-		PayPalClientSecret: os.Getenv("PAYPAL_CLIENT_SECRET"),
-		PayPalMode:         os.Getenv("PAYPAL_MODE"),
 	}
 
 	return config, nil

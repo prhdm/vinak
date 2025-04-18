@@ -44,19 +44,14 @@ func main() {
 
 	// Initialize payment services
 	nowpaymentsService := payment.NewNowPaymentsService(cfg.NowPaymentsAPIKey)
-	paypalService, err := payment.NewPayPalService(cfg.PayPalClientID, cfg.PayPalClientSecret, cfg.PayPalMode)
-	if err != nil {
-		log.Fatalf("Failed to initialize PayPal service: %v", err)
-	}
 	zarinpalService := payment.NewZarinpalService(cfg.ZarinpalMerchantID, cfg.ZarinpalSandbox)
 
-	// Initialize Telegram service
 	telegramService, err := telegram.NewTelegramService(cfg.TelegramToken, cfg.TelegramChatID)
 	if err != nil {
 		log.Fatalf("Failed to initialize Telegram service: %v", err)
 	}
 
-	paymentHandler := handlers.NewPaymentHandler(db, nowpaymentsService, paypalService, zarinpalService, telegramService)
+	paymentHandler := handlers.NewPaymentHandler(db, nowpaymentsService, zarinpalService, telegramService)
 
 	r := gin.Default()
 	r.Use(cors.New(cors.Config{
@@ -65,9 +60,7 @@ func main() {
 		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
 		AllowCredentials: true,
 	}))
-	r.POST("/api/payments", paymentHandler.CreatePayment)
 	r.GET("/api/top-users", paymentHandler.GetTopUsers)
-	r.POST("/api/payments/paypal/callback", paymentHandler.HandlePayPalCallback)
 	r.POST("/api/payments/zarinpal/callback", paymentHandler.HandleZarinpalCallback)
 	r.POST("/api/payments/nowpayments/callback", paymentHandler.HandleNowPaymentsCallback)
 	r.POST("/api/payment/prepare", paymentHandler.PreparePayment)
