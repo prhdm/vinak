@@ -49,7 +49,11 @@ type PaymentResponse struct {
 		FeeType   string `json:"fee_type"`
 		Fee       int    `json:"fee"`
 	} `json:"data"`
-	Errors []string `json:"errors"`
+	Errors struct {
+		Message     string   `json:"message"`
+		Code        int      `json:"code"`
+		Validations []string `json:"validations"`
+	} `json:"errors"`
 }
 
 type VerificationRequest struct {
@@ -68,7 +72,11 @@ type VerificationResponse struct {
 		FeeType  string `json:"fee_type"`
 		Fee      int    `json:"fee"`
 	} `json:"data"`
-	Errors []string `json:"errors"`
+	Errors struct {
+		Message     string   `json:"message"`
+		Code        int      `json:"code"`
+		Validations []string `json:"validations"`
+	} `json:"errors"`
 }
 
 func (s *ZarinpalService) CreatePayment(amount int, callbackURL, description, email, mobile string) (string, string, error) {
@@ -116,8 +124,8 @@ func (s *ZarinpalService) CreatePayment(amount int, callbackURL, description, em
 		return "", "", fmt.Errorf("failed to unmarshal response: %v, body: %s", err, string(body))
 	}
 
-	if len(paymentResp.Errors) > 0 {
-		return "", "", fmt.Errorf("payment request failed with errors: %v", paymentResp.Errors)
+	if paymentResp.Errors.Code != 0 {
+		return "", "", fmt.Errorf("payment request failed with code: %d, message: %s", paymentResp.Errors.Code, paymentResp.Errors.Message)
 	}
 
 	if paymentResp.Data.Code != 100 {
@@ -175,8 +183,8 @@ func (s *ZarinpalService) VerifyPayment(amount int, authority string) (bool, str
 		return false, "", fmt.Errorf("failed to unmarshal response: %v, body: %s", err, string(body))
 	}
 
-	if len(verifyResp.Errors) > 0 {
-		return false, "", fmt.Errorf("payment verification failed with errors: %v", verifyResp.Errors)
+	if verifyResp.Errors.Code != 0 {
+		return false, "", fmt.Errorf("payment verification failed with code: %d, message: %s", verifyResp.Errors.Code, verifyResp.Errors.Message)
 	}
 
 	if verifyResp.Data.Code != 100 && verifyResp.Data.Code != 101 {
