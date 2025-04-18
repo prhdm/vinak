@@ -353,101 +353,26 @@ func (h *PaymentHandler) HandleNowPaymentsCallback(c *gin.Context) {
 }
 
 func (h *PaymentHandler) GetTopUsers(c *gin.Context) {
-	var usdTopUsers []struct {
+	var topUsers []struct {
 		Name        string  `json:"name"`
 		InstagramID string  `json:"instagram_id"`
 		TotalAmount float64 `json:"total_amount"`
-		Currency    string  `json:"currency"`
 	}
 
-	err := h.db.Model(&models.Payment{}).
-		Select("users.name, users.instagram_id, SUM(payments.amount) as total_amount").
-		Joins("JOIN users ON users.id = payments.user_id").
-		Where("payments.status = ?", constants.PaymentStatusCompleted).
-		Where("payments.currency = ?", constants.CurrencyUSD).
-		Group("users.name, users.instagram_id").
+	err := h.db.Model(&models.UserPayment{}).
+		Select("users.name, users.instagram_id, user_payments.amount as total_amount").
+		Joins("JOIN users ON users.id = user_payments.user_id").
 		Order("total_amount DESC").
 		Limit(10).
-		Scan(&usdTopUsers).Error
+		Scan(&topUsers).Error
 
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, errors.NewAPIError(http.StatusInternalServerError, constants.ErrFailedToGetTopUsers))
+		c.JSON(http.StatusInternalServerError, errors.NewAPIError(http.StatusInternalServerError, "Failed to get top users"))
 		return
-	}
-
-	// Add currency to USD supporters
-	for i := range usdTopUsers {
-		usdTopUsers[i].Currency = constants.CurrencyUSD
-	}
-
-	// Get top IRR supporters
-	var irrTopUsers []struct {
-		Name        string  `json:"name"`
-		InstagramID string  `json:"instagram_id"`
-		TotalAmount float64 `json:"total_amount"`
-		Currency    string  `json:"currency"`
-	}
-
-	err = h.db.Model(&models.Payment{}).
-		Select("users.name, users.instagram_id, SUM(payments.amount) as total_amount").
-		Joins("JOIN users ON users.id = payments.user_id").
-		Where("payments.status = ?", constants.PaymentStatusCompleted).
-		Where("payments.currency = ?", constants.CurrencyIRR).
-		Group("users.name, users.instagram_id").
-		Order("total_amount DESC").
-		Limit(10).
-		Scan(&irrTopUsers).Error
-
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, errors.NewAPIError(http.StatusInternalServerError, constants.ErrFailedToGetTopUsers))
-		return
-	}
-
-	// Add currency to IRR supporters
-	for i := range irrTopUsers {
-		irrTopUsers[i].Currency = constants.CurrencyIRR
-	}
-
-	// Format response
-	supporters := make([]struct {
-		Name      string  `json:"name"`
-		Instagram string  `json:"instagram"`
-		Amount    float64 `json:"amount"`
-		Currency  string  `json:"currency"`
-	}, len(usdTopUsers)+len(irrTopUsers))
-
-	// Add USD supporters
-	for i, user := range usdTopUsers {
-		supporters[i] = struct {
-			Name      string  `json:"name"`
-			Instagram string  `json:"instagram"`
-			Amount    float64 `json:"amount"`
-			Currency  string  `json:"currency"`
-		}{
-			Name:      user.Name,
-			Instagram: user.InstagramID,
-			Amount:    user.TotalAmount,
-			Currency:  user.Currency,
-		}
-	}
-
-	// Add IRR supporters
-	for i, user := range irrTopUsers {
-		supporters[len(usdTopUsers)+i] = struct {
-			Name      string  `json:"name"`
-			Instagram string  `json:"instagram"`
-			Amount    float64 `json:"amount"`
-			Currency  string  `json:"currency"`
-		}{
-			Name:      user.Name,
-			Instagram: user.InstagramID,
-			Amount:    user.TotalAmount,
-			Currency:  user.Currency,
-		}
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"supporters": supporters,
+		"top_users": topUsers,
 	})
 }
 
@@ -494,7 +419,7 @@ func (h *PaymentHandler) HandleZarinpalCallback(c *gin.Context) {
 		// If not found, create a new record
 		userPayment = models.UserPayment{
 			UserID: user.ID,
-			Amount: amount,
+			Amount: amount / 100000,
 		}
 		if err := h.db.Create(&userPayment).Error; err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create user payment record"})
@@ -502,7 +427,7 @@ func (h *PaymentHandler) HandleZarinpalCallback(c *gin.Context) {
 		}
 	} else {
 		// If found, update the amount
-		userPayment.Amount += amount
+		userPayment.Amount += amount / 100000
 		if err := h.db.Save(&userPayment).Error; err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update user payment record"})
 			return
