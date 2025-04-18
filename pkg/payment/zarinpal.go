@@ -86,9 +86,7 @@ func (s *ZarinpalService) CreatePayment(amount int, callbackURL, description, em
 		CallbackURL: callbackURL,
 		Description: description,
 		Metadata: PaymentMetadata{
-			Mobile:  mobile,
-			Email:   email,
-			OrderID: "",
+			Email: email,
 		},
 	}
 
