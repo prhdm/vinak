@@ -60,10 +60,10 @@ func main() {
 		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
 		AllowCredentials: true,
 	}))
-	r.GET("/api/top-users", paymentHandler.GetTopUsers)
-	r.GET("/api/payments/zarinpal/callback", paymentHandler.HandleZarinpalCallback)
-	r.POST("/api/payments/nowpayments/callback", paymentHandler.HandleNowPaymentsCallback)
-	r.POST("/api/payment/prepare", paymentHandler.PreparePayment)
+	r.GET("/api/v1/top-users", paymentHandler.GetTopUsers)
+	r.GET("/api/v1/payments/zarinpal/callback", paymentHandler.HandleZarinpalCallback)
+	r.POST("/api/v1/payments/nowpayments/callback", paymentHandler.HandleNowPaymentsCallback)
+	r.POST("/api/v1/payment/prepare", paymentHandler.PreparePayment)
 
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{
