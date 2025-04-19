@@ -44,7 +44,7 @@ type PreparePaymentRequest struct {
 
 func (h *PaymentHandler) HandleNowPaymentsCallback(c *gin.Context) {
 	var callback struct {
-		PaymentID     string  `json:"payment_id"`
+		PaymentID     int64   `json:"payment_id"`
 		PaymentStatus string  `json:"payment_status"`
 		PayAmount     float64 `json:"pay_amount"`
 		PayCurrency   string  `json:"pay_currency"`
@@ -58,7 +58,7 @@ func (h *PaymentHandler) HandleNowPaymentsCallback(c *gin.Context) {
 
 	// Query the PaymentLog table using JSONB query to find the payment ID
 	var paymentLog models.PaymentLog
-	if err := h.db.Where("data->>'payment_id' = ?", callback.PaymentID).First(&paymentLog).Error; err != nil {
+	if err := h.db.Where("data->>'payment_id' = ?", fmt.Sprintf("%d", callback.PaymentID)).First(&paymentLog).Error; err != nil {
 		log.Printf("NowPayments callback error: Payment log not found: %v", err)
 		c.Redirect(http.StatusTemporaryRedirect, "/cancel")
 		return
@@ -112,7 +112,7 @@ func (h *PaymentHandler) HandleNowPaymentsCallback(c *gin.Context) {
 	newPaymentLog := models.PaymentLog{
 		PaymentID: paymentLog.PaymentID,
 		Event:     "nowpayments_payment_completed",
-		Data: fmt.Sprintf(`{"payment_id": "%s", "status": "%s", "user_id": %d, "paid_amount": %f, "original_amount": %f, "currency": "%s"}`,
+		Data: fmt.Sprintf(`{"payment_id": %d, "status": "%s", "user_id": %d, "paid_amount": %f, "original_amount": %f, "currency": "%s"}`,
 			callback.PaymentID, callback.PaymentStatus, user.ID, callback.PayAmount, originalAmount, callback.PayCurrency),
 	}
 
