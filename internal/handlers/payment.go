@@ -352,13 +352,20 @@ func (h *PaymentHandler) PreparePayment(c *gin.Context) {
 			return
 		}
 	}
-
-	// Log payment
-	paymentLog := models.PaymentLog{
-		UserID:    user.ID,
-		PaymentID: 0,
-		Event:     "payment_prepared",
-		Data:      fmt.Sprintf(`{"amount": %f, "currency": "%s", "authority_id": "%s"}`, req.Amount, req.Currency, req.AuthorityID),
+	var paymentLog models.PaymentLog
+	if req.AuthorityID == "" {
+		paymentLog = models.PaymentLog{
+			UserID: user.ID,
+			Event:  "payment_prepared",
+			Data:   fmt.Sprintf(`{"amount": %f, "currency": "%s", "order_id": "%s"}`, req.Amount, req.Currency, req.OrderId),
+		}
+	} else {
+		paymentLog = models.PaymentLog{
+			UserID:    user.ID,
+			PaymentID: 0,
+			Event:     "payment_prepared",
+			Data:      fmt.Sprintf(`{"amount": %f, "currency": "%s", "authority_id": "%s"}`, req.Amount, req.Currency, req.AuthorityID),
+		}
 	}
 
 	if err := h.db.Create(&paymentLog).Error; err != nil {
