@@ -144,6 +144,15 @@ func (h *PaymentHandler) GetTopUsers(c *gin.Context) {
 		return
 	}
 
+	// Initialize empty array if no users found
+	if topUsers == nil {
+		topUsers = make([]struct {
+			Name        string  `json:"name"`
+			InstagramID string  `json:"instagram_id"`
+			TotalAmount float64 `json:"total_amount"`
+		}, 0)
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"top_users": topUsers,
 	})
