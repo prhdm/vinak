@@ -44,10 +44,27 @@ type PreparePaymentRequest struct {
 
 func (h *PaymentHandler) HandleNowPaymentsCallback(c *gin.Context) {
 	var callback struct {
-		PaymentID     int64   `json:"payment_id"`
-		PaymentStatus string  `json:"payment_status"`
-		PayAmount     float64 `json:"pay_amount"`
-		PayCurrency   string  `json:"pay_currency"`
+		PaymentID        int64   `json:"payment_id"`
+		InvoiceID        *string `json:"invoice_id"`
+		PaymentStatus    string  `json:"payment_status"`
+		PayAddress       string  `json:"pay_address"`
+		PayinExtraID     *string `json:"payin_extra_id"`
+		PriceAmount      float64 `json:"price_amount"`
+		PriceCurrency    string  `json:"price_currency"`
+		PayAmount        float64 `json:"pay_amount"`
+		ActuallyPaid     float64 `json:"actually_paid"`
+		PayCurrency      string  `json:"pay_currency"`
+		OrderID          *string `json:"order_id"`
+		OrderDescription *string `json:"order_description"`
+		PurchaseID       int64   `json:"purchase_id"`
+		OutcomeAmount    float64 `json:"outcome_amount"`
+		OutcomeCurrency  string  `json:"outcome_currency"`
+		PayoutHash       string  `json:"payout_hash"`
+		PayinHash        string  `json:"payin_hash"`
+		CreatedAt        string  `json:"created_at"`
+		UpdatedAt        string  `json:"updated_at"`
+		BurningPercent   *string `json:"burning_percent"`
+		Type             string  `json:"type"`
 	}
 
 	if err := c.ShouldBindJSON(&callback); err != nil {
@@ -56,10 +73,12 @@ func (h *PaymentHandler) HandleNowPaymentsCallback(c *gin.Context) {
 		return
 	}
 
-	// Query the PaymentLog table using JSONB query to find the payment ID
+	log.Printf("Received NowPayments callback: %+v", callback)
+
+	// Query the PaymentLog table using order_id from the initial payment preparation
 	var paymentLog models.PaymentLog
-	if err := h.db.Where("data->>'payment_id' = ?", fmt.Sprintf("%d", callback.PaymentID)).First(&paymentLog).Error; err != nil {
-		log.Printf("NowPayments callback error: Payment log not found: %v", err)
+	if err := h.db.Where("data->>'order_id' = ?", callback.OrderID).First(&paymentLog).Error; err != nil {
+		log.Printf("NowPayments callback error: Payment log not found for order_id %v: %v", callback.OrderID, err)
 		c.Redirect(http.StatusTemporaryRedirect, "/cancel")
 		return
 	}
@@ -72,15 +91,15 @@ func (h *PaymentHandler) HandleNowPaymentsCallback(c *gin.Context) {
 		return
 	}
 
-	// Verify the payment with NowPayments
+	// Verify the payment status
 	if callback.PaymentStatus != "finished" {
 		log.Printf("NowPayments callback error: Invalid payment status: %s", callback.PaymentStatus)
 		c.Redirect(http.StatusTemporaryRedirect, "/cancel")
 		return
 	}
 
-	// Calculate original amount (before fees)
-	originalAmount := calculateOriginalAmount(callback.PayAmount, "usd")
+	// Calculate original amount (before fees) using the price_amount in USD
+	originalAmount := calculateOriginalAmount(callback.PriceAmount, "usd")
 
 	// Calculate storage amount
 	storageAmount := originalAmount
@@ -108,12 +127,31 @@ func (h *PaymentHandler) HandleNowPaymentsCallback(c *gin.Context) {
 		}
 	}
 
-	// Create payment log with both original and paid amounts
+	// Create payment log with detailed payment information
 	newPaymentLog := models.PaymentLog{
 		PaymentID: paymentLog.PaymentID,
 		Event:     "nowpayments_payment_completed",
-		Data: fmt.Sprintf(`{"payment_id": %d, "status": "%s", "user_id": %d, "paid_amount": %f, "original_amount": %f, "currency": "%s"}`,
-			callback.PaymentID, callback.PaymentStatus, user.ID, callback.PayAmount, originalAmount, callback.PayCurrency),
+		Data: fmt.Sprintf(`{
+			"payment_id": %d,
+			"status": "%s",
+			"user_id": %d,
+			"price_amount": %f,
+			"price_currency": "%s",
+			"pay_amount": %f,
+			"pay_currency": "%s",
+			"original_amount": %f,
+			"order_id": %v
+		}`,
+			callback.PaymentID,
+			callback.PaymentStatus,
+			user.ID,
+			callback.PriceAmount,
+			callback.PriceCurrency,
+			callback.PayAmount,
+			callback.PayCurrency,
+			originalAmount,
+			callback.OrderID,
+		),
 	}
 
 	if err := h.db.Create(&newPaymentLog).Error; err != nil {
@@ -127,7 +165,7 @@ func (h *PaymentHandler) HandleNowPaymentsCallback(c *gin.Context) {
 		user.Name,
 		user.InstagramID,
 		originalAmount,
-		callback.PayCurrency,
+		callback.PriceCurrency,
 		time.Now(),
 	); err != nil {
 		log.Printf("NowPayments callback warning: Failed to send Telegram notification: %v", err)
