@@ -51,29 +51,32 @@ func (h *PaymentHandler) HandleNowPaymentsCallback(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&callback); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.Redirect(http.StatusTemporaryRedirect, "/cancel")
 		return
 	}
 
 	// Query the PaymentLog table using JSONB query to find the payment ID
 	var paymentLog models.PaymentLog
 	if err := h.db.Where("data->>'payment_id' = ?", callback.PaymentID).First(&paymentLog).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Payment log not found"})
+		c.Redirect(http.StatusTemporaryRedirect, "/cancel")
 		return
 	}
 
 	// Retrieve the user ID from the payment log
 	var user models.User
 	if err := h.db.Where("id = ?", paymentLog.UserID).First(&user).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to find user"})
+		c.Redirect(http.StatusTemporaryRedirect, "/cancel")
 		return
 	}
 
 	// Verify the payment with NowPayments
 	if callback.PaymentStatus != "finished" {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Payment verification failed"})
+		c.Redirect(http.StatusTemporaryRedirect, "/cancel")
 		return
 	}
+
+	// Calculate storage amount
+	storageAmount := callback.PayAmount / 100000
 
 	// Update or create user payment record
 	var userPayment models.UserPayment
@@ -81,17 +84,17 @@ func (h *PaymentHandler) HandleNowPaymentsCallback(c *gin.Context) {
 		// If not found, create a new record
 		userPayment = models.UserPayment{
 			UserID: user.ID,
-			Amount: callback.PayAmount,
+			Amount: storageAmount,
 		}
 		if err := h.db.Create(&userPayment).Error; err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create user payment record"})
+			c.Redirect(http.StatusTemporaryRedirect, "/cancel")
 			return
 		}
 	} else {
 		// If found, update the amount
-		userPayment.Amount += callback.PayAmount
+		userPayment.Amount += storageAmount
 		if err := h.db.Save(&userPayment).Error; err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update user payment record"})
+			c.Redirect(http.StatusTemporaryRedirect, "/cancel")
 			return
 		}
 	}
@@ -100,11 +103,11 @@ func (h *PaymentHandler) HandleNowPaymentsCallback(c *gin.Context) {
 	newPaymentLog := models.PaymentLog{
 		PaymentID: paymentLog.PaymentID,
 		Event:     "nowpayments_payment_completed",
-		Data:      fmt.Sprintf(`{"payment_id": "%s", "status": "%s", "user_id": %d}`, callback.PaymentID, callback.PaymentStatus, user.ID),
+		Data:      fmt.Sprintf(`{"payment_id": "%s", "status": "%s", "user_id": %d, "amount": %f, "currency": "%s"}`, callback.PaymentID, callback.PaymentStatus, user.ID, callback.PayAmount, callback.PayCurrency),
 	}
 
 	if err := h.db.Create(&newPaymentLog).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create payment log"})
+		c.Redirect(http.StatusTemporaryRedirect, "/cancel")
 		return
 	}
 
@@ -119,11 +122,8 @@ func (h *PaymentHandler) HandleNowPaymentsCallback(c *gin.Context) {
 		log.Printf("Failed to send Telegram notification: %v", err)
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"status":     "success",
-		"payment_id": callback.PaymentID,
-		"amount":     callback.PayAmount,
-	})
+	// Redirect to success page
+	c.Redirect(http.StatusTemporaryRedirect, "/success")
 }
 
 func (h *PaymentHandler) GetTopUsers(c *gin.Context) {
