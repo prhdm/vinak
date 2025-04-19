@@ -95,7 +95,7 @@ func (h *PaymentHandler) HandleNowPaymentsCallback(c *gin.Context) {
 		// If not found, create a new record
 		userPayment = models.UserPayment{
 			UserID: user.ID,
-			Amount: callback.PayAmount / 100000,
+			Amount: callback.PayAmount,
 		}
 		if err := h.db.Create(&userPayment).Error; err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create user payment record"})
@@ -103,7 +103,7 @@ func (h *PaymentHandler) HandleNowPaymentsCallback(c *gin.Context) {
 		}
 	} else {
 		// If found, update the amount
-		userPayment.Amount += callback.PayAmount / 100000
+		userPayment.Amount += callback.PayAmount
 		if err := h.db.Save(&userPayment).Error; err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update user payment record"})
 			return
@@ -207,12 +207,16 @@ func (h *PaymentHandler) HandleZarinpalCallback(c *gin.Context) {
 		return
 	}
 
-	// Verify the payment with Zarinpal
+	fmt.Println("paymentData", paymentData)
+	// Verify the payment with Zarinpal using the original amount
 	ok, refID, err := h.zarinpalService.VerifyPayment(int(paymentData.Amount), authority)
 	if err != nil || !ok {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Payment verification failed"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Payment verification failed: %v", err)})
 		return
 	}
+
+	// After successful verification, convert amount for storage (divide by 100000)
+	storageAmount := paymentData.Amount / 100000
 
 	// Update or create user payment record
 	var userPayment models.UserPayment
@@ -220,7 +224,7 @@ func (h *PaymentHandler) HandleZarinpalCallback(c *gin.Context) {
 		// If not found, create a new record
 		userPayment = models.UserPayment{
 			UserID: user.ID,
-			Amount: paymentData.Amount / 100000,
+			Amount: storageAmount,
 		}
 		if err := h.db.Create(&userPayment).Error; err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create user payment record"})
@@ -228,7 +232,7 @@ func (h *PaymentHandler) HandleZarinpalCallback(c *gin.Context) {
 		}
 	} else {
 		// If found, update the amount
-		userPayment.Amount += paymentData.Amount / 100000
+		userPayment.Amount += storageAmount
 		if err := h.db.Save(&userPayment).Error; err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update user payment record"})
 			return
@@ -239,7 +243,7 @@ func (h *PaymentHandler) HandleZarinpalCallback(c *gin.Context) {
 	newPaymentLog := models.PaymentLog{
 		PaymentID: paymentLog.PaymentID,
 		Event:     "zarinpal_payment_completed",
-		Data:      fmt.Sprintf(`{"authority": "%s", "ref_id": "%s", "user_id": %d}`, authority, refID, user.ID),
+		Data:      fmt.Sprintf(`{"authority": "%s", "ref_id": "%s", "user_id": %d, "amount": %f}`, authority, refID, user.ID, paymentData.Amount),
 	}
 
 	if err := h.db.Create(&newPaymentLog).Error; err != nil {
@@ -247,7 +251,7 @@ func (h *PaymentHandler) HandleZarinpalCallback(c *gin.Context) {
 		return
 	}
 
-	// Send Telegram notification
+	// Send Telegram notification with original amount
 	if err := h.telegramService.SendPaymentNotification(
 		user.Name,
 		user.InstagramID,
