@@ -12,6 +12,9 @@ COPY go.mod go.sum ./
 # Download all dependencies
 RUN go mod download
 
+# Enable vendoring
+RUN go mod vendor
+
 # Copy the source code
 COPY . .
 
