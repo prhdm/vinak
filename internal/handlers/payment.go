@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"math/rand"
 	"net/http"
 	"time"
 
@@ -36,9 +37,23 @@ type PreparePaymentRequest struct {
 	Name        string  `json:"name" binding:"required"`
 	InstagramID string  `json:"instagram_id" binding:"required"`
 	Email       string  `json:"email" binding:"required,email"`
-	Currency    string  `json:"currency" binding:"required,oneof=usd irr btc"`
+	Currency    string  `json:"currency" binding:"required,oneof=crypto irr"`
 	Amount      float64 `json:"amount" binding:"required,gt=0"`
 	AuthorityID string  `json:"authority_id" binding:"required"`
+}
+
+func init() {
+	rand.Seed(time.Now().UnixNano())
+}
+
+func generateAPIKey() string {
+	// Generate a random string for API key
+	const letters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	b := make([]byte, 32)
+	for i := range b {
+		b[i] = letters[rand.Intn(len(letters))]
+	}
+	return string(b)
 }
 
 func (h *PaymentHandler) HandleNowPaymentsCallback(c *gin.Context) {
@@ -274,6 +289,7 @@ func (h *PaymentHandler) PreparePayment(c *gin.Context) {
 		}
 	}
 
+	// Log payment
 	paymentLog := models.PaymentLog{
 		UserID:    user.ID,
 		PaymentID: 0,

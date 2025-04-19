@@ -61,7 +61,7 @@ func main() {
 		AllowCredentials: true,
 	}))
 	r.GET("/api/top-users", paymentHandler.GetTopUsers)
-	r.POST("/api/payments/zarinpal/callback", paymentHandler.HandleZarinpalCallback)
+	r.GET("/api/payments/zarinpal/callback", paymentHandler.HandleZarinpalCallback)
 	r.POST("/api/payments/nowpayments/callback", paymentHandler.HandleNowPaymentsCallback)
 	r.POST("/api/payment/prepare", paymentHandler.PreparePayment)
 
