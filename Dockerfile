@@ -1,5 +1,5 @@
 # Build stage
-FROM golang:1.22-alpine AS builder
+FROM golang:1.23-alpine AS builder
 
 WORKDIR /app
 
@@ -19,7 +19,7 @@ RUN go mod vendor
 COPY . .
 
 # Build the application
-RUN CGO_ENABLED=0 GOOS=linux go build -o main ./cmd/api
+RUN CGO_ENABLED=0 GOOS=linux go build -o ak47-backend ./cmd/api
 
 # Final stage
 FROM alpine:latest
@@ -30,7 +30,7 @@ WORKDIR /app
 RUN apk --no-cache add ca-certificates
 
 # Copy the binary from builder
-COPY --from=builder /app/main .
+COPY --from=builder /app/ak47-backend .
 
 # Copy environment file
 COPY .env .
@@ -39,4 +39,4 @@ COPY .env .
 EXPOSE 8080
 
 # Run the application
-CMD ["./main"] 
+CMD ["./ak47-backend"]
