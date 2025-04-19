@@ -44,27 +44,16 @@ type PreparePaymentRequest struct {
 
 func (h *PaymentHandler) HandleNowPaymentsCallback(c *gin.Context) {
 	var callback struct {
-		PaymentID        int64   `json:"payment_id"`
-		InvoiceID        *string `json:"invoice_id"`
-		PaymentStatus    string  `json:"payment_status"`
-		PayAddress       string  `json:"pay_address"`
-		PayinExtraID     *string `json:"payin_extra_id"`
-		PriceAmount      float64 `json:"price_amount"`
-		PriceCurrency    string  `json:"price_currency"`
-		PayAmount        float64 `json:"pay_amount"`
-		ActuallyPaid     float64 `json:"actually_paid"`
-		PayCurrency      string  `json:"pay_currency"`
-		OrderID          *string `json:"order_id"`
-		OrderDescription *string `json:"order_description"`
-		PurchaseID       int64   `json:"purchase_id"`
-		OutcomeAmount    float64 `json:"outcome_amount"`
-		OutcomeCurrency  string  `json:"outcome_currency"`
-		PayoutHash       string  `json:"payout_hash"`
-		PayinHash        string  `json:"payin_hash"`
-		CreatedAt        string  `json:"created_at"`
-		UpdatedAt        string  `json:"updated_at"`
-		BurningPercent   *string `json:"burning_percent"`
-		Type             string  `json:"type"`
+		PaymentID     int64   `json:"payment_id"`
+		PaymentStatus string  `json:"payment_status"`
+		PayAddress    string  `json:"pay_address"`
+		PayinExtraID  *string `json:"payin_extra_id"`
+		PriceAmount   float64 `json:"price_amount"`
+		PriceCurrency string  `json:"price_currency"`
+		PayAmount     float64 `json:"pay_amount"`
+		ActuallyPaid  float64 `json:"actually_paid"`
+		PayCurrency   string  `json:"pay_currency"`
+		OrderID       *string `json:"order_id"`
 	}
 
 	if err := c.ShouldBindJSON(&callback); err != nil {
