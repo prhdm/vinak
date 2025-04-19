@@ -178,21 +178,21 @@ func (h *PaymentHandler) HandleZarinpalCallback(c *gin.Context) {
 	status := c.Query("Status")
 
 	if authority == "" || status != "OK" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Payment was canceled or invalid"})
+		c.Redirect(http.StatusTemporaryRedirect, "/cancel")
 		return
 	}
 
 	// Query the PaymentLog table using JSONB query to find the authority ID
 	var paymentLog models.PaymentLog
 	if err := h.db.Where("data->>'authority_id' = ?", authority).First(&paymentLog).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Payment log not found"})
+		c.Redirect(http.StatusTemporaryRedirect, "/cancel")
 		return
 	}
 
 	// Retrieve the user ID from the payment log
 	var user models.User
 	if err := h.db.Where("id = ?", paymentLog.UserID).First(&user).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to find user"})
+		c.Redirect(http.StatusTemporaryRedirect, "/cancel")
 		return
 	}
 
@@ -203,7 +203,7 @@ func (h *PaymentHandler) HandleZarinpalCallback(c *gin.Context) {
 		AuthorityID string  `json:"authority_id"`
 	}
 	if err := json.Unmarshal([]byte(paymentLog.Data), &paymentData); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to parse payment data"})
+		c.Redirect(http.StatusTemporaryRedirect, "/cancel")
 		return
 	}
 
@@ -211,7 +211,7 @@ func (h *PaymentHandler) HandleZarinpalCallback(c *gin.Context) {
 	// Verify the payment with Zarinpal using the original amount
 	ok, refID, err := h.zarinpalService.VerifyPayment(int(paymentData.Amount), authority)
 	if err != nil || !ok {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Payment verification failed: %v", err)})
+		c.Redirect(http.StatusTemporaryRedirect, "/cancel")
 		return
 	}
 
@@ -227,14 +227,14 @@ func (h *PaymentHandler) HandleZarinpalCallback(c *gin.Context) {
 			Amount: storageAmount,
 		}
 		if err := h.db.Create(&userPayment).Error; err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create user payment record"})
+			c.Redirect(http.StatusTemporaryRedirect, "/cancel")
 			return
 		}
 	} else {
 		// If found, update the amount
 		userPayment.Amount += storageAmount
 		if err := h.db.Save(&userPayment).Error; err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update user payment record"})
+			c.Redirect(http.StatusTemporaryRedirect, "/cancel")
 			return
 		}
 	}
@@ -247,7 +247,7 @@ func (h *PaymentHandler) HandleZarinpalCallback(c *gin.Context) {
 	}
 
 	if err := h.db.Create(&newPaymentLog).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create payment log"})
+		c.Redirect(http.StatusTemporaryRedirect, "/cancel")
 		return
 	}
 
@@ -262,12 +262,8 @@ func (h *PaymentHandler) HandleZarinpalCallback(c *gin.Context) {
 		log.Printf("Failed to send Telegram notification: %v", err)
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"status":  "success",
-		"ref_id":  refID,
-		"amount":  paymentData.Amount,
-		"orderId": paymentLog.PaymentID,
-	})
+	// Redirect to success page
+	c.Redirect(http.StatusTemporaryRedirect, "/success")
 }
 
 func (h *PaymentHandler) PreparePayment(c *gin.Context) {
