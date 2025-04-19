@@ -36,7 +36,7 @@ type PreparePaymentRequest struct {
 	Name        string  `json:"name" binding:"required"`
 	InstagramID string  `json:"instagram_id" binding:"required"`
 	Email       string  `json:"email" binding:"required,email"`
-	Currency    string  `json:"currency" binding:"required,oneof=crypto irr"`
+	Currency    string  `json:"currency" binding:"required,oneof=usd irr"`
 	Amount      float64 `json:"amount" binding:"required,gt=0"`
 	AuthorityID string  `json:"authority_id"`
 	OrderCode   string  `json:"order_code"`
