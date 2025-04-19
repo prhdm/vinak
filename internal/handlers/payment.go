@@ -8,9 +8,9 @@ import (
 	"net/http"
 	"time"
 
-	"vinak/internal/models"
-	"vinak/pkg/payment"
-	"vinak/pkg/telegram"
+	"ak47/internal/models"
+	"ak47/pkg/payment"
+	"ak47/pkg/telegram"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -54,33 +54,55 @@ func (h *PaymentHandler) HandleNowPaymentsCallback(c *gin.Context) {
 		return
 	}
 
-	// Get payment and user details
-	var payment models.Payment
-	var user models.User
-	if err := h.db.Where("nowpayments_payment_id = ?", callback.PaymentID).First(&payment).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Payment not found"})
+	// Query the PaymentLog table using JSONB query to find the payment ID
+	var paymentLog models.PaymentLog
+	if err := h.db.Where("data->>'payment_id' = ?", callback.PaymentID).First(&paymentLog).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Payment log not found"})
 		return
 	}
-	if err := h.db.Where("id = ?", payment.UserID).First(&user).Error; err != nil {
+
+	// Retrieve the user ID from the payment log
+	var user models.User
+	if err := h.db.Where("id = ?", paymentLog.UserID).First(&user).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to find user"})
 		return
 	}
 
-	// Update payment status
-	payment.Status = "completed"
-	if err := h.db.Save(&payment).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update payment status"})
+	// Verify the payment with NowPayments
+	if callback.PaymentStatus != "finished" {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Payment verification failed"})
 		return
 	}
 
-	// Create payment log
-	paymentLog := models.PaymentLog{
-		PaymentID: payment.ID,
-		Event:     "nowpayments_payment_completed",
-		Data:      `{"payment_id": "` + callback.PaymentID + `", "status": "` + callback.PaymentStatus + `"}`,
+	// Update or create user payment record
+	var userPayment models.UserPayment
+	if err := h.db.Where("user_id = ?", user.ID).First(&userPayment).Error; err != nil {
+		// If not found, create a new record
+		userPayment = models.UserPayment{
+			UserID: user.ID,
+			Amount: callback.PayAmount / 100000,
+		}
+		if err := h.db.Create(&userPayment).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create user payment record"})
+			return
+		}
+	} else {
+		// If found, update the amount
+		userPayment.Amount += callback.PayAmount / 100000
+		if err := h.db.Save(&userPayment).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update user payment record"})
+			return
+		}
 	}
 
-	if err := h.db.Create(&paymentLog).Error; err != nil {
+	// Create payment log with user ID
+	newPaymentLog := models.PaymentLog{
+		PaymentID: paymentLog.PaymentID,
+		Event:     "nowpayments_payment_completed",
+		Data:      fmt.Sprintf(`{"payment_id": "%s", "status": "%s", "user_id": %d}`, callback.PaymentID, callback.PaymentStatus, user.ID),
+	}
+
+	if err := h.db.Create(&newPaymentLog).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create payment log"})
 		return
 	}
@@ -89,14 +111,18 @@ func (h *PaymentHandler) HandleNowPaymentsCallback(c *gin.Context) {
 	if err := h.telegramService.SendPaymentNotification(
 		user.Name,
 		user.InstagramID,
-		payment.Amount,
-		payment.Currency,
+		callback.PayAmount,
+		callback.PayCurrency,
 		time.Now(),
 	); err != nil {
 		log.Printf("Failed to send Telegram notification: %v", err)
 	}
 
-	c.JSON(http.StatusOK, gin.H{"status": "success"})
+	c.JSON(http.StatusOK, gin.H{
+		"status":     "success",
+		"payment_id": callback.PaymentID,
+		"amount":     callback.PayAmount,
+	})
 }
 
 func (h *PaymentHandler) GetTopUsers(c *gin.Context) {

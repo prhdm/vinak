@@ -1,13 +1,13 @@
 package main
 
 import (
+	"ak47/internal/config"
+	"ak47/internal/handlers"
+	"ak47/internal/models"
+	"ak47/pkg/payment"
+	"ak47/pkg/telegram"
 	"context"
 	"log"
-	"vinak/internal/config"
-	"vinak/internal/handlers"
-	"vinak/internal/models"
-	"vinak/pkg/payment"
-	"vinak/pkg/telegram"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
