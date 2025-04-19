@@ -47,7 +47,6 @@ func (h *PaymentHandler) HandleNowPaymentsCallback(c *gin.Context) {
 		PaymentID     int64   `json:"payment_id"`
 		PaymentStatus string  `json:"payment_status"`
 		PayAddress    string  `json:"pay_address"`
-		PayinExtraID  *string `json:"payin_extra_id"`
 		PriceAmount   float64 `json:"price_amount"`
 		PriceCurrency string  `json:"price_currency"`
 		PayAmount     float64 `json:"pay_amount"`
@@ -120,17 +119,7 @@ func (h *PaymentHandler) HandleNowPaymentsCallback(c *gin.Context) {
 	newPaymentLog := models.PaymentLog{
 		PaymentID: paymentLog.PaymentID,
 		Event:     "nowpayments_payment_completed",
-		Data: fmt.Sprintf(`{
-			"payment_id": %d,
-			"status": "%s",
-			"user_id": %d,
-			"price_amount": %f,
-			"price_currency": "%s",
-			"pay_amount": %f,
-			"pay_currency": "%s",
-			"original_amount": %f,
-			"order_id": %v
-		}`,
+		Data: fmt.Sprintf(`{"payment_id": %d, "status": "%s", "user_id": %d, "price_amount": %f, "price_currency": "%s", "pay_amount": %f, "pay_currency": "%s", "original_amount": %f, "order_id": %s}`,
 			callback.PaymentID,
 			callback.PaymentStatus,
 			user.ID,
@@ -139,7 +128,12 @@ func (h *PaymentHandler) HandleNowPaymentsCallback(c *gin.Context) {
 			callback.PayAmount,
 			callback.PayCurrency,
 			originalAmount,
-			callback.OrderID,
+			func() string {
+				if callback.OrderID == nil {
+					return "null"
+				}
+				return fmt.Sprintf(`"%s"`, *callback.OrderID)
+			}(),
 		),
 	}
 
