@@ -209,7 +209,7 @@ func (h *PaymentHandler) HandleZarinpalCallback(c *gin.Context) {
 
 	fmt.Println("paymentData", paymentData)
 	// Verify the payment with Zarinpal using the original amount
-	ok, refID, err := h.zarinpalService.VerifyPayment(int(paymentData.Amount), authority)
+	ok, refID, err := h.zarinpalService.VerifyPayment(int(paymentData.Amount*10), authority)
 	if err != nil || !ok {
 		c.Redirect(http.StatusTemporaryRedirect, "/cancel")
 		return
