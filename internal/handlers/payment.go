@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"math/rand"
 	"net/http"
 	"time"
 
@@ -40,20 +39,7 @@ type PreparePaymentRequest struct {
 	Currency    string  `json:"currency" binding:"required,oneof=crypto irr"`
 	Amount      float64 `json:"amount" binding:"required,gt=0"`
 	AuthorityID string  `json:"authority_id"`
-}
-
-func init() {
-	rand.Seed(time.Now().UnixNano())
-}
-
-func generateAPIKey() string {
-	// Generate a random string for API key
-	const letters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-	b := make([]byte, 32)
-	for i := range b {
-		b[i] = letters[rand.Intn(len(letters))]
-	}
-	return string(b)
+	OrderCode   string  `json:"order_code"`
 }
 
 func (h *PaymentHandler) HandleNowPaymentsCallback(c *gin.Context) {
