@@ -197,14 +197,18 @@ func (h *PaymentHandler) HandleZarinpalCallback(c *gin.Context) {
 	}
 
 	// Parse amount from JSONB data
-	var amount float64
-	if err := json.Unmarshal([]byte(paymentLog.Data), &amount); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to parse amount from payment log"})
+	var paymentData struct {
+		Amount      float64 `json:"amount"`
+		Currency    string  `json:"currency"`
+		AuthorityID string  `json:"authority_id"`
+	}
+	if err := json.Unmarshal([]byte(paymentLog.Data), &paymentData); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to parse payment data"})
 		return
 	}
 
 	// Verify the payment with Zarinpal
-	ok, refID, err := h.zarinpalService.VerifyPayment(int(amount), authority)
+	ok, refID, err := h.zarinpalService.VerifyPayment(int(paymentData.Amount), authority)
 	if err != nil || !ok {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Payment verification failed"})
 		return
@@ -216,7 +220,7 @@ func (h *PaymentHandler) HandleZarinpalCallback(c *gin.Context) {
 		// If not found, create a new record
 		userPayment = models.UserPayment{
 			UserID: user.ID,
-			Amount: amount / 100000,
+			Amount: paymentData.Amount / 100000,
 		}
 		if err := h.db.Create(&userPayment).Error; err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create user payment record"})
@@ -224,7 +228,7 @@ func (h *PaymentHandler) HandleZarinpalCallback(c *gin.Context) {
 		}
 	} else {
 		// If found, update the amount
-		userPayment.Amount += amount / 100000
+		userPayment.Amount += paymentData.Amount / 100000
 		if err := h.db.Save(&userPayment).Error; err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update user payment record"})
 			return
@@ -247,7 +251,7 @@ func (h *PaymentHandler) HandleZarinpalCallback(c *gin.Context) {
 	if err := h.telegramService.SendPaymentNotification(
 		user.Name,
 		user.InstagramID,
-		amount,
+		paymentData.Amount,
 		"irr",
 		time.Now(),
 	); err != nil {
@@ -257,7 +261,7 @@ func (h *PaymentHandler) HandleZarinpalCallback(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"status":  "success",
 		"ref_id":  refID,
-		"amount":  amount,
+		"amount":  paymentData.Amount,
 		"orderId": paymentLog.PaymentID,
 	})
 }
