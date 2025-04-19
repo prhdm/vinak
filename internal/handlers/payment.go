@@ -39,7 +39,7 @@ type PreparePaymentRequest struct {
 	Currency    string  `json:"currency" binding:"required,oneof=usd irr"`
 	Amount      float64 `json:"amount" binding:"required,gt=0"`
 	AuthorityID string  `json:"authority_id"`
-	OrderCode   string  `json:"order_code"`
+	OrderId     string  `json:"order_id"`
 }
 
 func (h *PaymentHandler) HandleNowPaymentsCallback(c *gin.Context) {
