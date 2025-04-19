@@ -51,7 +51,6 @@ func (h *PaymentHandler) HandleNowPaymentsCallback(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&callback); err != nil {
-		log.Printf("NowPayments callback error: Failed to bind JSON: %v", err)
 		c.Redirect(http.StatusTemporaryRedirect, "/cancel")
 		return
 	}
@@ -59,7 +58,6 @@ func (h *PaymentHandler) HandleNowPaymentsCallback(c *gin.Context) {
 	// Query the PaymentLog table using JSONB query to find the payment ID
 	var paymentLog models.PaymentLog
 	if err := h.db.Where("data->>'payment_id' = ?", callback.PaymentID).First(&paymentLog).Error; err != nil {
-		log.Printf("NowPayments callback error: Payment log not found: %v", err)
 		c.Redirect(http.StatusTemporaryRedirect, "/cancel")
 		return
 	}
@@ -67,17 +65,18 @@ func (h *PaymentHandler) HandleNowPaymentsCallback(c *gin.Context) {
 	// Retrieve the user ID from the payment log
 	var user models.User
 	if err := h.db.Where("id = ?", paymentLog.UserID).First(&user).Error; err != nil {
-		log.Printf("NowPayments callback error: Failed to find user: %v", err)
 		c.Redirect(http.StatusTemporaryRedirect, "/cancel")
 		return
 	}
 
 	// Verify the payment with NowPayments
 	if callback.PaymentStatus != "finished" {
-		log.Printf("NowPayments callback error: Invalid payment status: %s", callback.PaymentStatus)
 		c.Redirect(http.StatusTemporaryRedirect, "/cancel")
 		return
 	}
+
+	// Calculate storage amount
+	storageAmount := callback.PayAmount / 100000
 
 	// Update or create user payment record
 	var userPayment models.UserPayment
@@ -85,10 +84,9 @@ func (h *PaymentHandler) HandleNowPaymentsCallback(c *gin.Context) {
 		// If not found, create a new record
 		userPayment = models.UserPayment{
 			UserID: user.ID,
-			Amount: callback.PayAmount,
+			Amount: storageAmount,
 		}
 		if err := h.db.Create(&userPayment).Error; err != nil {
-			log.Printf("NowPayments callback error: Failed to create user payment record: %v", err)
 			c.Redirect(http.StatusTemporaryRedirect, "/cancel")
 			return
 		}
@@ -102,15 +100,14 @@ func (h *PaymentHandler) HandleNowPaymentsCallback(c *gin.Context) {
 		}
 	}
 
-	// Create payment log
+	// Create payment log with user ID
 	newPaymentLog := models.PaymentLog{
 		PaymentID: paymentLog.PaymentID,
 		Event:     "nowpayments_payment_completed",
-		Data:      fmt.Sprintf(`{"payment_id": "%s", "status": "%s", "user_id": %d}`, callback.PaymentID, callback.PaymentStatus, user.ID),
+		Data:      fmt.Sprintf(`{"payment_id": "%s", "status": "%s", "user_id": %d, "amount": %f, "currency": "%s"}`, callback.PaymentID, callback.PaymentStatus, user.ID, callback.PayAmount, callback.PayCurrency),
 	}
 
 	if err := h.db.Create(&newPaymentLog).Error; err != nil {
-		log.Printf("NowPayments callback error: Failed to create payment log: %v", err)
 		c.Redirect(http.StatusTemporaryRedirect, "/cancel")
 		return
 	}
@@ -123,9 +120,10 @@ func (h *PaymentHandler) HandleNowPaymentsCallback(c *gin.Context) {
 		callback.PayCurrency,
 		time.Now(),
 	); err != nil {
-		log.Printf("NowPayments callback warning: Failed to send Telegram notification: %v", err)
+		log.Printf("Failed to send Telegram notification: %v", err)
 	}
 
+	// Redirect to success page
 	c.Redirect(http.StatusTemporaryRedirect, "/success")
 }
 
@@ -238,13 +236,12 @@ func (h *PaymentHandler) HandleZarinpalCallback(c *gin.Context) {
 		// If found, update the amount
 		userPayment.Amount += storageAmount
 		if err := h.db.Save(&userPayment).Error; err != nil {
-			log.Printf("Zarinpal callback error: Failed to update user payment record: %v", err)
 			c.Redirect(http.StatusTemporaryRedirect, "/cancel")
 			return
 		}
 	}
 
-	// Create payment log
+	// Create payment log with user ID
 	newPaymentLog := models.PaymentLog{
 		PaymentID: paymentLog.PaymentID,
 		Event:     "zarinpal_payment_completed",
@@ -252,12 +249,11 @@ func (h *PaymentHandler) HandleZarinpalCallback(c *gin.Context) {
 	}
 
 	if err := h.db.Create(&newPaymentLog).Error; err != nil {
-		log.Printf("Zarinpal callback error: Failed to create completion log: %v", err)
 		c.Redirect(http.StatusTemporaryRedirect, "/cancel")
 		return
 	}
 
-	// Send Telegram notification
+	// Send Telegram notification with original amount
 	if err := h.telegramService.SendPaymentNotification(
 		user.Name,
 		user.InstagramID,
@@ -265,9 +261,10 @@ func (h *PaymentHandler) HandleZarinpalCallback(c *gin.Context) {
 		"irr",
 		time.Now(),
 	); err != nil {
-		log.Printf("Zarinpal callback warning: Failed to send Telegram notification: %v", err)
+		log.Printf("Failed to send Telegram notification: %v", err)
 	}
 
+	// Redirect to success page
 	c.Redirect(http.StatusTemporaryRedirect, "/success")
 }
 

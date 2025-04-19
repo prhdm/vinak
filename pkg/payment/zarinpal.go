@@ -42,8 +42,9 @@ type VerificationResponse struct {
 		RefID    int    `json:"ref_id"`
 		FeeType  string `json:"fee_type"`
 		Fee      int    `json:"fee"`
+		OrderID  string `json:"order_id"`
 	} `json:"data"`
-	Errors struct {
+	Errors []struct {
 		Message     string   `json:"message"`
 		Code        int      `json:"code"`
 		Validations []string `json:"validations"`
@@ -89,8 +90,8 @@ func (s *ZarinpalService) VerifyPayment(amount int, authority string) (bool, str
 		return false, "", fmt.Errorf("failed to unmarshal response: %v, body: %s", err, string(body))
 	}
 
-	if verifyResp.Errors.Code != 0 {
-		return false, "", fmt.Errorf("payment verification failed with code: %d, message: %s", verifyResp.Errors.Code, verifyResp.Errors.Message)
+	if len(verifyResp.Errors) > 0 {
+		return false, "", fmt.Errorf("payment verification failed with message: %s", verifyResp.Errors[0].Message)
 	}
 
 	if verifyResp.Data.Code != 100 && verifyResp.Data.Code != 101 {
