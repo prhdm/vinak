@@ -39,7 +39,7 @@ type PreparePaymentRequest struct {
 	Email       string  `json:"email" binding:"required,email"`
 	Currency    string  `json:"currency" binding:"required,oneof=crypto irr"`
 	Amount      float64 `json:"amount" binding:"required,gt=0"`
-	AuthorityID string  `json:"authority_id" binding:"required"`
+	AuthorityID string  `json:"authority_id"`
 }
 
 func init() {
