@@ -51,6 +51,7 @@ func (h *PaymentHandler) HandleNowPaymentsCallback(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&callback); err != nil {
+		log.Printf("NowPayments callback error: Failed to bind JSON: %v", err)
 		c.Redirect(http.StatusTemporaryRedirect, "/cancel")
 		return
 	}
@@ -58,6 +59,7 @@ func (h *PaymentHandler) HandleNowPaymentsCallback(c *gin.Context) {
 	// Query the PaymentLog table using JSONB query to find the payment ID
 	var paymentLog models.PaymentLog
 	if err := h.db.Where("data->>'payment_id' = ?", callback.PaymentID).First(&paymentLog).Error; err != nil {
+		log.Printf("NowPayments callback error: Payment log not found: %v", err)
 		c.Redirect(http.StatusTemporaryRedirect, "/cancel")
 		return
 	}
@@ -65,18 +67,23 @@ func (h *PaymentHandler) HandleNowPaymentsCallback(c *gin.Context) {
 	// Retrieve the user ID from the payment log
 	var user models.User
 	if err := h.db.Where("id = ?", paymentLog.UserID).First(&user).Error; err != nil {
+		log.Printf("NowPayments callback error: Failed to find user: %v", err)
 		c.Redirect(http.StatusTemporaryRedirect, "/cancel")
 		return
 	}
 
 	// Verify the payment with NowPayments
 	if callback.PaymentStatus != "finished" {
+		log.Printf("NowPayments callback error: Invalid payment status: %s", callback.PaymentStatus)
 		c.Redirect(http.StatusTemporaryRedirect, "/cancel")
 		return
 	}
 
+	// Calculate original amount (before fees)
+	originalAmount := calculateOriginalAmount(callback.PayAmount, "usd")
+
 	// Calculate storage amount
-	storageAmount := callback.PayAmount / 100000
+	storageAmount := originalAmount
 
 	// Update or create user payment record
 	var userPayment models.UserPayment
@@ -87,12 +94,13 @@ func (h *PaymentHandler) HandleNowPaymentsCallback(c *gin.Context) {
 			Amount: storageAmount,
 		}
 		if err := h.db.Create(&userPayment).Error; err != nil {
+			log.Printf("NowPayments callback error: Failed to create user payment record: %v", err)
 			c.Redirect(http.StatusTemporaryRedirect, "/cancel")
 			return
 		}
 	} else {
 		// If found, update the amount
-		userPayment.Amount += callback.PayAmount
+		userPayment.Amount += storageAmount
 		if err := h.db.Save(&userPayment).Error; err != nil {
 			log.Printf("NowPayments callback error: Failed to update user payment record: %v", err)
 			c.Redirect(http.StatusTemporaryRedirect, "/cancel")
@@ -100,30 +108,31 @@ func (h *PaymentHandler) HandleNowPaymentsCallback(c *gin.Context) {
 		}
 	}
 
-	// Create payment log with user ID
+	// Create payment log with both original and paid amounts
 	newPaymentLog := models.PaymentLog{
 		PaymentID: paymentLog.PaymentID,
 		Event:     "nowpayments_payment_completed",
-		Data:      fmt.Sprintf(`{"payment_id": "%s", "status": "%s", "user_id": %d, "amount": %f, "currency": "%s"}`, callback.PaymentID, callback.PaymentStatus, user.ID, callback.PayAmount, callback.PayCurrency),
+		Data: fmt.Sprintf(`{"payment_id": "%s", "status": "%s", "user_id": %d, "paid_amount": %f, "original_amount": %f, "currency": "%s"}`,
+			callback.PaymentID, callback.PaymentStatus, user.ID, callback.PayAmount, originalAmount, callback.PayCurrency),
 	}
 
 	if err := h.db.Create(&newPaymentLog).Error; err != nil {
+		log.Printf("NowPayments callback error: Failed to create payment log: %v", err)
 		c.Redirect(http.StatusTemporaryRedirect, "/cancel")
 		return
 	}
 
-	// Send Telegram notification
+	// Send Telegram notification with original amount
 	if err := h.telegramService.SendPaymentNotification(
 		user.Name,
 		user.InstagramID,
-		callback.PayAmount,
+		originalAmount,
 		callback.PayCurrency,
 		time.Now(),
 	); err != nil {
-		log.Printf("Failed to send Telegram notification: %v", err)
+		log.Printf("NowPayments callback warning: Failed to send Telegram notification: %v", err)
 	}
 
-	// Redirect to success page
 	c.Redirect(http.StatusTemporaryRedirect, "/success")
 }
 
@@ -167,6 +176,13 @@ func (h *PaymentHandler) GetTopUsers(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"top_users": topUsers,
 	})
+}
+
+func calculateOriginalAmount(amount float64, currency string) float64 {
+	if currency == "irr" {
+		return amount / 1.14
+	}
+	return amount / 1.07
 }
 
 func (h *PaymentHandler) HandleZarinpalCallback(c *gin.Context) {
@@ -216,8 +232,11 @@ func (h *PaymentHandler) HandleZarinpalCallback(c *gin.Context) {
 		return
 	}
 
+	// Calculate original amount (before fees)
+	originalAmount := calculateOriginalAmount(paymentData.Amount, "irr")
+
 	// After successful verification, convert amount for storage (divide by 100000)
-	storageAmount := paymentData.Amount / 100000
+	storageAmount := originalAmount / 100000
 
 	// Update or create user payment record
 	var userPayment models.UserPayment
@@ -241,11 +260,12 @@ func (h *PaymentHandler) HandleZarinpalCallback(c *gin.Context) {
 		}
 	}
 
-	// Create payment log with user ID
+	// Create payment log with user ID and both original and paid amounts
 	newPaymentLog := models.PaymentLog{
 		PaymentID: paymentLog.PaymentID,
 		Event:     "zarinpal_payment_completed",
-		Data:      fmt.Sprintf(`{"authority": "%s", "ref_id": "%s", "user_id": %d, "amount": %f}`, authority, refID, user.ID, paymentData.Amount),
+		Data: fmt.Sprintf(`{"authority": "%s", "ref_id": "%s", "user_id": %d, "paid_amount": %f, "original_amount": %f, "currency": "%s"}`,
+			authority, refID, user.ID, paymentData.Amount, originalAmount, paymentData.Currency),
 	}
 
 	if err := h.db.Create(&newPaymentLog).Error; err != nil {
@@ -257,7 +277,7 @@ func (h *PaymentHandler) HandleZarinpalCallback(c *gin.Context) {
 	if err := h.telegramService.SendPaymentNotification(
 		user.Name,
 		user.InstagramID,
-		paymentData.Amount,
+		originalAmount, // Use original amount for notification
 		"irr",
 		time.Now(),
 	); err != nil {
