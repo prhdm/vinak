@@ -8,7 +8,14 @@ type User struct {
 	ID          uint   `gorm:"primary_key;auto_increment"`
 	Email       string `gorm:"unique;not null"`
 	InstagramID string `gorm:"unique;not null"`
-	Name        string `gorm:"not null"`
+	Name        string
+	PersianName string
+	PhoneNumber *string `gorm:"default:null"`
+	Province    *string `gorm:"default:null"`
+	City        *string `gorm:"default:null"`
+	Address     *string `gorm:"default:null"`
+	PostalCode  *string `gorm:"default:null"`
+	PlateNumber *string `gorm:"default:null"`
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 }

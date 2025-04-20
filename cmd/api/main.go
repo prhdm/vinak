@@ -64,6 +64,7 @@ func main() {
 	r.GET("/api/v1/payments/zarinpal/callback", paymentHandler.HandleZarinpalCallback)
 	r.POST("/api/v1/payments/nowpayments/callback", paymentHandler.HandleNowPaymentsCallback)
 	r.POST("/api/v1/payment/prepare", paymentHandler.PreparePayment)
+	r.GET("/api/v1/payment/paypal/callback", paymentHandler.HandlePayPalCallback)
 
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{

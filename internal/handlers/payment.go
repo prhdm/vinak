@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"ak47/internal/models"
@@ -33,13 +34,21 @@ func NewPaymentHandler(db *gorm.DB, nowpaymentsService *payment.NowPaymentsServi
 }
 
 type PreparePaymentRequest struct {
-	Name        string  `json:"name" binding:"required"`
-	InstagramID string  `json:"instagram_id" binding:"required"`
-	Email       string  `json:"email" binding:"required,email"`
-	Currency    string  `json:"currency" binding:"required,oneof=usd irr"`
-	Amount      float64 `json:"amount" binding:"required,gt=0"`
-	AuthorityID string  `json:"authority_id"`
-	OrderId     string  `json:"order_id"`
+	Name         string  `json:"name" binding:"required"`
+	InstagramID  string  `json:"instagram_id" binding:"required"`
+	Email        string  `json:"email" binding:"required,email"`
+	Currency     string  `json:"currency" binding:"required,oneof=usd irr"`
+	Amount       float64 `json:"amount" binding:"required,gt=0"`
+	AuthorityID  string  `json:"authority_id"`
+	OrderId      string  `json:"order_id"`
+	PurchaseType string  `json:"purchase_type" binding:"required,oneof=physical digital"`
+	PersianName  string  `json:"persian_name"`
+	PhoneNumber  string  `json:"phone_number"`
+	Province     string  `json:"province"`
+	City         string  `json:"city"`
+	Address      string  `json:"address"`
+	PostalCode   string  `json:"postal_code"`
+	PlateNumber  string  `json:"plate_number"`
 }
 
 func (h *PaymentHandler) HandleNowPaymentsCallback(c *gin.Context) {
@@ -143,13 +152,39 @@ func (h *PaymentHandler) HandleNowPaymentsCallback(c *gin.Context) {
 		return
 	}
 
+	// In HandleNowPaymentsCallback
+	var purchaseTypeData struct {
+		PurchaseType string `json:"purchase_type"`
+	}
+	if err := json.Unmarshal([]byte(paymentLog.Data), &purchaseTypeData); err != nil {
+		log.Printf("NowPayments callback warning: Failed to parse purchase type: %v", err)
+	}
+
 	// Send Telegram notification with original amount
+	var persianName *string
+	var province, city, address, postalCode, plateNumber *string
+	if purchaseTypeData.PurchaseType == "physical" {
+		persianName = &user.PersianName
+		province = user.Province
+		city = user.City
+		address = user.Address
+		postalCode = user.PostalCode
+		plateNumber = user.PlateNumber
+	}
+
 	if err := h.telegramService.SendPaymentNotification(
 		user.Name,
 		user.InstagramID,
 		originalAmount,
 		callback.PriceCurrency,
 		time.Now(),
+		purchaseTypeData.PurchaseType,
+		persianName,
+		province,
+		city,
+		address,
+		postalCode,
+		plateNumber,
 	); err != nil {
 		log.Printf("NowPayments callback warning: Failed to send Telegram notification: %v", err)
 	}
@@ -257,7 +292,7 @@ func (h *PaymentHandler) HandleZarinpalCallback(c *gin.Context) {
 	originalAmount := calculateOriginalAmount(paymentData.Amount, "irr")
 
 	// After successful verification, convert amount for storage (divide by 100000)
-	storageAmount := originalAmount / 100000
+	storageAmount := originalAmount / 83000
 
 	// Update or create user payment record
 	var userPayment models.UserPayment
@@ -294,18 +329,177 @@ func (h *PaymentHandler) HandleZarinpalCallback(c *gin.Context) {
 		return
 	}
 
+	// In HandleZarinpalCallback
+	var purchaseTypeData struct {
+		PurchaseType string `json:"purchase_type"`
+	}
+	if err := json.Unmarshal([]byte(paymentLog.Data), &purchaseTypeData); err != nil {
+		log.Printf("Zarinpal callback warning: Failed to parse purchase type: %v", err)
+	}
+
 	// Send Telegram notification with original amount
+	var persianName *string
+	var province, city, address, postalCode, plateNumber *string
+	if purchaseTypeData.PurchaseType == "physical" {
+		persianName = &user.PersianName
+		province = user.Province
+		city = user.City
+		address = user.Address
+		postalCode = user.PostalCode
+		plateNumber = user.PlateNumber
+	}
+
 	if err := h.telegramService.SendPaymentNotification(
 		user.Name,
 		user.InstagramID,
-		originalAmount, // Use original amount for notification
+		originalAmount,
 		"irr",
 		time.Now(),
+		purchaseTypeData.PurchaseType,
+		persianName,
+		province,
+		city,
+		address,
+		postalCode,
+		plateNumber,
 	); err != nil {
 		log.Printf("Failed to send Telegram notification: %v", err)
 	}
 
 	// Redirect to success page
+	c.Redirect(http.StatusTemporaryRedirect, "/success")
+}
+
+func (h *PaymentHandler) HandlePayPalCallback(c *gin.Context) {
+	orderCode := c.Query("orderCode")
+	if orderCode == "" {
+		log.Printf("PayPal callback error: Missing order code")
+		c.Redirect(http.StatusTemporaryRedirect, "/cancel")
+		return
+	}
+
+	// Query the PaymentLog table using order_id from the initial payment preparation
+	var paymentLog models.PaymentLog
+	if err := h.db.Where("data->>'order_id' = ?", orderCode).First(&paymentLog).Error; err != nil {
+		log.Printf("PayPal callback error: Payment log not found for order_id %v: %v", orderCode, err)
+		c.Redirect(http.StatusTemporaryRedirect, "/cancel")
+		return
+	}
+
+	// Parse the original payment data
+	var paymentData struct {
+		Amount       float64 `json:"amount"`
+		Currency     string  `json:"currency"`
+		OrderID      string  `json:"order_id"`
+		PurchaseType string  `json:"purchase_type"`
+	}
+	if err := json.Unmarshal([]byte(paymentLog.Data), &paymentData); err != nil {
+		log.Printf("PayPal callback error: Failed to parse payment data: %v", err)
+		c.Redirect(http.StatusTemporaryRedirect, "/cancel")
+		return
+	}
+
+	// Retrieve the user ID from the payment log
+	var user models.User
+	if err := h.db.Where("id = ?", paymentLog.UserID).First(&user).Error; err != nil {
+		log.Printf("PayPal callback error: Failed to find user: %v", err)
+		c.Redirect(http.StatusTemporaryRedirect, "/cancel")
+		return
+	}
+
+	// Calculate original amount (before fees)
+	originalAmount := calculateOriginalAmount(paymentData.Amount, strings.ToLower(paymentData.Currency))
+
+	// Calculate storage amount
+	storageAmount := originalAmount
+
+	// Update or create user payment record
+	var userPayment models.UserPayment
+	if err := h.db.Where("user_id = ?", user.ID).First(&userPayment).Error; err != nil {
+		// If not found, create a new record
+		userPayment = models.UserPayment{
+			UserID: user.ID,
+			Amount: storageAmount,
+		}
+		if err := h.db.Create(&userPayment).Error; err != nil {
+			log.Printf("PayPal callback error: Failed to create user payment record: %v", err)
+			c.Redirect(http.StatusTemporaryRedirect, "/cancel")
+			return
+		}
+	} else {
+		// If found, update the amount
+		userPayment.Amount += storageAmount
+		if err := h.db.Save(&userPayment).Error; err != nil {
+			log.Printf("PayPal callback error: Failed to update user payment record: %v", err)
+			c.Redirect(http.StatusTemporaryRedirect, "/cancel")
+			return
+		}
+	}
+
+	// Create payment log with detailed payment information
+	newPaymentLog := models.PaymentLog{
+		PaymentID: paymentLog.PaymentID,
+		UserID:    user.ID,
+		Event:     "paypal_payment_completed",
+		Data: fmt.Sprintf(`{
+			"order_id": "%s",
+			"status": "completed",
+			"amount": %f,
+			"currency": "%s",
+			"original_amount": %f,
+			"purchase_type": "%s"
+		}`,
+			orderCode,
+			paymentData.Amount,
+			paymentData.Currency,
+			originalAmount,
+			paymentData.PurchaseType,
+		),
+	}
+
+	if err := h.db.Create(&newPaymentLog).Error; err != nil {
+		log.Printf("PayPal callback error: Failed to create payment log: %v", err)
+		c.Redirect(http.StatusTemporaryRedirect, "/cancel")
+		return
+	}
+
+	// In HandlePayPalCallback
+	var purchaseTypeData struct {
+		PurchaseType string `json:"purchase_type"`
+	}
+	if err := json.Unmarshal([]byte(paymentLog.Data), &purchaseTypeData); err != nil {
+		log.Printf("PayPal callback warning: Failed to parse purchase type: %v", err)
+	}
+
+	// Send Telegram notification with original amount and purchase type
+	var persianName *string
+	var province, city, address, postalCode, plateNumber *string
+	if purchaseTypeData.PurchaseType == "physical" {
+		persianName = &user.PersianName
+		province = user.Province
+		city = user.City
+		address = user.Address
+		postalCode = user.PostalCode
+		plateNumber = user.PlateNumber
+	}
+
+	if err := h.telegramService.SendPaymentNotification(
+		user.Name,
+		user.InstagramID,
+		originalAmount,
+		strings.ToLower(paymentData.Currency),
+		time.Now(),
+		purchaseTypeData.PurchaseType,
+		persianName,
+		province,
+		city,
+		address,
+		postalCode,
+		plateNumber,
+	); err != nil {
+		log.Printf("PayPal callback warning: Failed to send Telegram notification: %v", err)
+	}
+
 	c.Redirect(http.StatusTemporaryRedirect, "/success")
 }
 
@@ -335,19 +529,47 @@ func (h *PaymentHandler) PreparePayment(c *gin.Context) {
 			return
 		}
 	}
+	if req.PurchaseType == "physical" {
+		if req.PersianName != "" {
+			user.Name = req.PersianName
+		}
+		if user.PhoneNumber == nil || *user.PhoneNumber == "" {
+			user.PhoneNumber = &req.PhoneNumber
+		}
+		if user.Province == nil || *user.Province == "" {
+			user.Province = &req.Province
+		}
+		if user.City == nil || *user.City == "" {
+			user.City = &req.City
+		}
+		if user.Address == nil || *user.Address == "" {
+			user.Address = &req.Address
+		}
+		if user.PostalCode == nil || *user.PostalCode == "" {
+			user.PostalCode = &req.PostalCode
+		}
+		if user.PlateNumber == nil || *user.PlateNumber == "" {
+			user.PlateNumber = &req.PlateNumber
+		}
+		if err := h.db.Save(&user).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save user"})
+			return
+		}
+	}
+
 	var paymentLog models.PaymentLog
 	if req.AuthorityID == "" {
 		paymentLog = models.PaymentLog{
 			UserID: user.ID,
 			Event:  "payment_prepared",
-			Data:   fmt.Sprintf(`{"amount": %f, "currency": "%s", "order_id": "%s"}`, req.Amount, req.Currency, req.OrderId),
+			Data:   fmt.Sprintf(`{"amount": %f, "currency": "%s", "order_id": "%s", "purchase_type": "%s"}`, req.Amount, req.Currency, req.OrderId, req.PurchaseType),
 		}
 	} else {
 		paymentLog = models.PaymentLog{
 			UserID:    user.ID,
 			PaymentID: 0,
 			Event:     "payment_prepared",
-			Data:      fmt.Sprintf(`{"amount": %f, "currency": "%s", "authority_id": "%s"}`, req.Amount, req.Currency, req.AuthorityID),
+			Data:      fmt.Sprintf(`{"amount": %f, "currency": "%s", "authority_id": "%s", "purchase_type": "%s"}`, req.Amount, req.Currency, req.AuthorityID, req.PurchaseType),
 		}
 	}
 
