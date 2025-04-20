@@ -55,7 +55,7 @@ func main() {
 
 	r := gin.Default()
 	r.Use(cors.New(cors.Config{
-		AllowOrigins:     []string{"http://127.0.0.1:5502", "https://ak47album.com"},
+		AllowOrigins:     []string{"http://127.0.0.1:5502", "https://vinak.net", "https://vinak.org"},
 		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
 		AllowCredentials: true,
