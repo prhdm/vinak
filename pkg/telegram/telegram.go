@@ -24,7 +24,7 @@ func NewTelegramService(token string, chatID int64) (*TelegramService, error) {
 	}, nil
 }
 
-func (s *TelegramService) SendPaymentNotification(name, instagramID string, amount float64, currency string, paymentTime time.Time, purchaseType string, persianName, province, city, address, postalCode, plateNumber *string) error {
+func (s *TelegramService) SendPaymentNotification(name, instagramID string, amount float64, currency string, paymentTime time.Time, purchaseType string, persianName, phoneNumber, province, city, address, postalCode, plateNumber *string) error {
 	// Start with basic message
 	message := fmt.Sprintf(
 		"💰 New %s Received!\n\n"+
@@ -53,6 +53,9 @@ func (s *TelegramService) SendPaymentNotification(name, instagramID string, amou
 
 		if persianName != nil && *persianName != "" {
 			physicalDetails += fmt.Sprintf("\n🔤 Persian Name: %s", *persianName)
+		}
+		if phoneNumber != nil && *phoneNumber != "" {
+			physicalDetails += fmt.Sprintf("\n📞 Phone Number: %s", *phoneNumber)
 		}
 		if province != nil && *province != "" {
 			physicalDetails += fmt.Sprintf("\n📍 Province: %s", *province)

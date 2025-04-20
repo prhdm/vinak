@@ -162,9 +162,10 @@ func (h *PaymentHandler) HandleNowPaymentsCallback(c *gin.Context) {
 
 	// Send Telegram notification with original amount
 	var persianName *string
-	var province, city, address, postalCode, plateNumber *string
+	var phoneNumber, province, city, address, postalCode, plateNumber *string
 	if purchaseTypeData.PurchaseType == "physical" {
 		persianName = &user.PersianName
+		phoneNumber = user.PhoneNumber
 		province = user.Province
 		city = user.City
 		address = user.Address
@@ -180,6 +181,7 @@ func (h *PaymentHandler) HandleNowPaymentsCallback(c *gin.Context) {
 		time.Now(),
 		purchaseTypeData.PurchaseType,
 		persianName,
+		phoneNumber,
 		province,
 		city,
 		address,
@@ -339,9 +341,10 @@ func (h *PaymentHandler) HandleZarinpalCallback(c *gin.Context) {
 
 	// Send Telegram notification with original amount
 	var persianName *string
-	var province, city, address, postalCode, plateNumber *string
+	var phoneNumber, province, city, address, postalCode, plateNumber *string
 	if purchaseTypeData.PurchaseType == "physical" {
 		persianName = &user.PersianName
+		phoneNumber = user.PhoneNumber
 		province = user.Province
 		city = user.City
 		address = user.Address
@@ -357,6 +360,7 @@ func (h *PaymentHandler) HandleZarinpalCallback(c *gin.Context) {
 		time.Now(),
 		purchaseTypeData.PurchaseType,
 		persianName,
+		phoneNumber,
 		province,
 		city,
 		address,
@@ -473,9 +477,10 @@ func (h *PaymentHandler) HandlePayPalCallback(c *gin.Context) {
 
 	// Send Telegram notification with original amount and purchase type
 	var persianName *string
-	var province, city, address, postalCode, plateNumber *string
+	var phoneNumber, province, city, address, postalCode, plateNumber *string
 	if purchaseTypeData.PurchaseType == "physical" {
 		persianName = &user.PersianName
+		phoneNumber = user.PhoneNumber
 		province = user.Province
 		city = user.City
 		address = user.Address
@@ -491,6 +496,7 @@ func (h *PaymentHandler) HandlePayPalCallback(c *gin.Context) {
 		time.Now(),
 		purchaseTypeData.PurchaseType,
 		persianName,
+		phoneNumber,
 		province,
 		city,
 		address,
@@ -531,7 +537,7 @@ func (h *PaymentHandler) PreparePayment(c *gin.Context) {
 	}
 	if req.PurchaseType == "physical" {
 		if req.PersianName != "" {
-			user.Name = req.PersianName
+			user.PersianName = req.PersianName
 		}
 		if user.PhoneNumber == nil || *user.PhoneNumber == "" {
 			user.PhoneNumber = &req.PhoneNumber
