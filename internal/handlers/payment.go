@@ -191,7 +191,11 @@ func (h *PaymentHandler) HandleNowPaymentsCallback(c *gin.Context) {
 		log.Printf("NowPayments callback warning: Failed to send Telegram notification: %v", err)
 	}
 
-	c.Redirect(http.StatusTemporaryRedirect, "/success")
+	successURL := fmt.Sprintf("/success?orderCode=%s&amount=%.2f&currency=%s",
+		*callback.OrderID,
+		originalAmount,
+		strings.ToLower(callback.PriceCurrency))
+	c.Redirect(http.StatusTemporaryRedirect, successURL)
 }
 
 func (h *PaymentHandler) GetTopUsers(c *gin.Context) {
@@ -370,8 +374,10 @@ func (h *PaymentHandler) HandleZarinpalCallback(c *gin.Context) {
 		log.Printf("Failed to send Telegram notification: %v", err)
 	}
 
-	// Redirect to success page
-	c.Redirect(http.StatusTemporaryRedirect, "/success")
+	successURL := fmt.Sprintf("/success?orderCode=%s&amount=%.2f&currency=irr",
+		authority,
+		originalAmount)
+	c.Redirect(http.StatusTemporaryRedirect, successURL)
 }
 
 func (h *PaymentHandler) HandlePayPalCallback(c *gin.Context) {
@@ -506,7 +512,11 @@ func (h *PaymentHandler) HandlePayPalCallback(c *gin.Context) {
 		log.Printf("PayPal callback warning: Failed to send Telegram notification: %v", err)
 	}
 
-	c.Redirect(http.StatusTemporaryRedirect, "/success")
+	successURL := fmt.Sprintf("/success?orderCode=%s&amount=%.2f&currency=%s",
+		orderCode,
+		originalAmount,
+		strings.ToLower(paymentData.Currency))
+	c.Redirect(http.StatusTemporaryRedirect, successURL)
 }
 
 func (h *PaymentHandler) PreparePayment(c *gin.Context) {
